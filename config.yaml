@@ -1,0 +1,15 @@
+MAIN:
+  path_to_project: "/mnt/data/danil.akhmetov/Projects/Severstal/"
+  path_to_data: "/mnt/data/danil.akhmetov/Projects/Severstal/data/"
+DATASETS:
+  a: 1
+TRAIN:
+  n_epochs: 50
+  batch_size: 8
+  learning_rate: 0.0001
+  weight_decay: 0.00001
+  prefix: "baseline"
+  weight: ""
+  log_path: "/mnt/data/danil.akhmetov/Projects/Severstal/output/logs"
+  model_path: "/mnt/data/danil.akhmetov/Projects/Severstal/output/models"
+
