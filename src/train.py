@@ -11,10 +11,11 @@ from utils import read_config
 from dataset import SteelDataset, AUGMENTATIONS_TRAIN, AUGMENTATIONS_TEST
 from loss import *
 from metrics import SoftDiceCoef, HardDiceCoef
+from optimizer import RAdam
 from collections import OrderedDict
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 
 def parse_args():
@@ -57,10 +58,10 @@ def main():
     # criterion = lovasz_hinge()
     # criterion = FocalTverskyLossWithoutLog(alpha=0.5, beta=0.5, gamma=2.0, add_weight=False, pos_weight=2.0, neg_weight=1.0, bce_weight=1.0, dice_weight=1.0)
 
-    if os.path.exists(config['log_path']):
-        shutil.rmtree(config['log_path'])
+    if os.path.exists(os.path.join(config['log_path'], config['prefix'])):
+        shutil.rmtree(os.path.join(config['log_path'], config['prefix']))
     else:
-        os.makedirs(config['log_path'])
+        os.makedirs(os.path.join(config['log_path'], config['prefix']))
 
     # opt = torch.optim.Adam(model.parameters())
     # for batch in tqdm(train_loader):
@@ -72,11 +73,19 @@ def main():
     #     loss.backward()
     #     opt.step()
 
+    metrics = {"soft_dice": SoftDiceCoef(),
+               "hard_dice": HardDiceCoef(threshold=0.5),
+               "hard_dice_0": HardDiceCoef(class_id=0),
+               "hard_dice_1": HardDiceCoef(class_id=1),
+               "hard_dice_2": HardDiceCoef(class_id=2),
+               "hard_dice_3": HardDiceCoef(class_id=3),
+               }
+
     keker = Keker(model=model,
                   dataowner=dataowner,
                   criterion=criterion,
                   target_key='mask',
-                  metrics={"soft_dice": SoftDiceCoef(), "hard_dice": HardDiceCoef(threshold=0.5)},
+                  metrics=metrics,
                   opt=torch.optim.Adam,
                   opt_params={"weight_decay": config['weight_decay']},
                   device=device)
@@ -109,8 +118,9 @@ def main():
               # sched_params={"T_max": 10, "eta_min": 5e-5},
               # sched=torch.optim.lr_scheduler.CyclicLR,
               # sched_params={"base_lr": 1e-5, "max_lr": 1e-4, "step_size_up": 3, "step_size_down": 3, "mode": "exp_range",
-              #               "gamma": 0.95, "base_momentum": 0.8, "max_momentum": 0.95},              # sched=torch.optim.lr_scheduler.CyclicLR,
-              logdir=config['log_path'],
+              #               "gamma": 0.95, "base_momentum": 0.8, "max_momentum": 0.95},
+              # sched=torch.optim.lr_scheduler.CyclicLR,
+              logdir=os.path.join(config['log_path'], config['prefix']),
               cp_saver_params={
                   "savedir": config['model_path'],
                   "metric": "hard_dice",

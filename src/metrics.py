@@ -25,21 +25,29 @@ def dice_coef_numpy(preds, trues, smooth=1e-3, noise_threshold=0):
 
 
 class SoftDiceCoef(nn.Module):
-    def __init__(self):
+    def __init__(self, class_id=None):
+        self.class_id = class_id
         super().__init__()
 
-    def forward(self, target, inputs):
+    def forward(self, inputs, target):
+        if self.class_id is not None:
+            inputs = inputs[:, self.class_id]
+            target = target[:, self.class_id]
         inputs = torch.sigmoid(inputs)
         dice = dice_coef(inputs, target)
         return dice
 
 
 class HardDiceCoef(nn.Module):
-    def __init__(self, threshold=0.5):
+    def __init__(self, class_id=None, threshold=0.5):
         super().__init__()
+        self.class_id = class_id
         self.threshold = threshold
 
-    def forward(self, target, inputs):
+    def forward(self, inputs, target):
+        if self.class_id is not None:
+            inputs = inputs[:, self.class_id]
+            target = target[:, self.class_id]
         inputs = torch.sigmoid(inputs)
         inputs = (inputs > self.threshold).float()
         dice = dice_coef(inputs, target)
