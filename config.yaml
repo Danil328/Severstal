@@ -11,6 +11,10 @@ TRAIN:
   weight_decay: 0.00001
   scheduler: "cosine"
   swa: 0
+  empty_mask_increase:
+    state: true
+    start_value: 0.0
+    end_value: 1.0
   prefix: "miras_radam"
   weight: ""
   log_path: "/home/danil.akhmetov/Projects/Severstal/output/logs"

@@ -11,7 +11,7 @@ from torchcontrib.optim import SWA
 from tqdm import tqdm
 
 from utils import read_config
-from dataset import SteelDataset, AUGMENTATIONS_TRAIN, AUGMENTATIONS_TEST
+from dataset import SteelDataset, EmptyMaskCallback, AUGMENTATIONS_TRAIN, AUGMENTATIONS_TEST
 from loss import *
 from metrics import SoftDiceCoef, HardDiceCoef
 from optimizer import RAdam
@@ -24,7 +24,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config-file", default="../config.yaml", metavar="FILE", help="path to config file", type=str)
-    parser.add_argument("--gpu-number", default="0,1", help="GPU for train", type=str)
     return parser.parse_args()
 
 
@@ -37,6 +36,8 @@ def main():
 
     train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=16)
     val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16)
+
+    dataowner = DataOwner(train_loader, val_loader, None)
 
     device = torch.device(f"cuda" if torch.cuda.is_available() else 'cpu')
 
@@ -53,7 +54,6 @@ def main():
 
     model = model.to(device)
 
-    dataowner = DataOwner(train_loader, val_loader, None)
     criterion = BCEDiceLoss(bce_weight=0.7, dice_weight=0.3)
     # criterion = FocalDiceLossWithoutLog(bce_weight=1.0, dice_weight=1.0)
     # criterion = lovasz_hinge()
@@ -97,23 +97,11 @@ def main():
                   opt_params=opt_params,
                   device=device)
 
-    # keker.kek_lr(final_lr=0.1, logdir=config['log_path+"_find_lr")
-
-    # keker.kek_one_cycle(max_lr=1e-4,  # the maximum learning rate
-    #                     cycle_len=10,  # number of epochs, actually, but not exactly
-    #                     momentum_range=(0.95, 0.85),  # range of momentum changes
-    #                     div_factor=25,  # max_lr / min_lr
-    #                     increase_fraction=0.3,
-    #                     logdir=config['log_path'],
-    #                     opt=torch.optim.Adam,
-    #                     opt_params={"weight_decay": config['decay']},
-    #                     cp_saver_params={
-    #                         "savedir": config['model_path'],
-    #                         "metric": "hard_dice",
-    #                         "n_best": 3,
-    #                         "prefix": config['prefix'],
-    #                         "mode": "max"}
-    #                     )
+    if config['empty_mask_increase']['state'] == "true":
+        empty_mask_callback = EmptyMaskCallback(start_value=config['empty_mask_increase']['start_value'],
+                                                end_value=config['empty_mask_increase']['end_value'],
+                                                n_epochs=config['n_epochs'])
+        keker.add_callbacks([empty_mask_callback])
 
     keker.kek(lr=config['learning_rate'],
               epochs=config['n_epochs'],

@@ -14,8 +14,11 @@ from albumentations import (
     Normalize,
     ShiftScaleRotate)
 from albumentations.pytorch import ToTensor
+from kekas.utils import DotDict
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
+from kekas.callbacks import Callback
+from tqdm import tqdm
 
 ORIG_SHAPE = (256, 1600)
 
@@ -47,6 +50,21 @@ AUGMENTATIONS_TEST_FLIPPED = Compose([
 
 
 class SteelDataset(Dataset):
+    """
+    0 - empty mask
+    Class balance
+    0       5902
+    1       769
+    12       35
+    123       2
+    13       91
+    2       195
+    23       14
+    24        1
+    3      4759
+    34      284
+    4       516
+    """
     def __init__(self, data_folder, transforms, phase):
         assert phase in ['train', 'val', 'test'], "Fuck you!"
 
@@ -55,6 +73,14 @@ class SteelDataset(Dataset):
         self.phase = phase
         if phase != 'test':
             self.images = self.split_train_val(glob.glob(os.path.join(self.root, "train_images", "*.jpg")))
+            if phase == 'train':
+                self.is_not_empty_images = []
+                for image in tqdm(self.images):
+                    self.is_not_empty_images.append(1.0 if cv2.imread(image).max() > 0 else 0.0)
+                self.is_not_empty_images = np.asarray(self.is_not_empty_images)
+                self.empty_images = self.images[self.is_not_empty_images == 0]
+                self.non_empty_images = self.images[self.is_not_empty_images == 1]
+                self.count_empty_images = len(self.empty_images)
         else:
             self.images = glob.glob(os.path.join(self.root, "test_images", "*.jpg"))
 
@@ -75,6 +101,18 @@ class SteelDataset(Dataset):
             return train
         elif self.phase == 'val':
             return val
+
+    def update_empty_mask_ratio(self, value: float):
+        self.images = self.non_empty_images + self.empty_images[:int(value * self.count_empty_images)]
+
+
+class EmptyMaskCallback(Callback):
+    def __init__(self, start_value:float, end_value:float, n_epochs: int):
+        self.start_value = start_value
+        self.delta = (end_value - start_value) / n_epochs
+
+    def on_epoch_begin(self, epoch: int, epochs: int, state: DotDict) -> None:
+        state['dataowner'].train_dl.dataset.update_empty_mask_ratio(self.start_value + self.delta * epoch)
 
 
 if __name__ == '__main__':
