@@ -101,29 +101,29 @@ class FocalDiceLossWithLog(nn.Module):
 
 
 class FocalDiceLoss(nn.Module):
-    def __init__(self, bce_weight=0.5, dice_weight=0.5):
+    def __init__(self, focal_weight=0.5, dice_weight=0.5):
         super().__init__()
         self.dice_loss = SoftDiceLoss()
         self.bce = FocalLoss(logits=False, add_weight=False)
-        self.bce_weight = bce_weight
+        self.focal_weight = focal_weight
         self.dice_weight = dice_weight
 
     def forward(self, inputs, target):
         inputs = torch.sigmoid(inputs)
-        return self.bce(inputs, target) * self.bce_weight + self.dice_loss(inputs, target) * self.dice_weight
+        return self.bce(inputs, target) * self.focal_weight + self.dice_loss(inputs, target) * self.dice_weight
 
 
 class FocalTverskyLoss(nn.Module):
-    def __init__(self, alpha=0.7, beta=0.3, gamma=2.0, add_weight=False, pos_weight=2.0, neg_weight=1.0, bce_weight=1.0, dice_weight=1.0):
+    def __init__(self, alpha=0.7, beta=0.3, gamma=2.0, add_weight=False, pos_weight=2.0, neg_weight=1.0, focal_weight=1.0, tversky_weight=1.0):
         super().__init__()
-        self.dice_loss = TverskyLoss(alpha=alpha, beta=beta , gamma=gamma)
+        self.dice_loss = TverskyLoss(alpha=alpha, beta=beta, gamma=gamma)
         self.bce = FocalLoss(logits=False, add_weight=add_weight, pos_weight=pos_weight, neg_weight=neg_weight)
-        self.bce_weight = bce_weight
-        self.dice_weight = dice_weight
+        self.focal_weight = focal_weight
+        self.dice_weight = tversky_weight
 
     def forward(self, inputs, target):
         inputs = torch.sigmoid(inputs)
-        return self.bce(inputs, target) * self.bce_weight + self.dice_loss(inputs, target) * self.dice_weight
+        return self.bce(inputs, target) * self.focal_weight + self.dice_loss(inputs, target) * self.tversky_weight
 
 
 

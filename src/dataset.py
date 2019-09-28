@@ -3,52 +3,33 @@ import os
 
 import cv2
 import numpy as np
-import pandas as pd
-import torch
 from albumentations import (
     HorizontalFlip,
     Compose,
     ElasticTransform,
     GridDistortion,
     OpticalDistortion,
-    RandomSizedCrop,
     OneOf,
-    CLAHE,
     RandomBrightnessContrast,
-    RandomGamma,
     Normalize,
-    IAAAdditiveGaussianNoise, GaussNoise, MotionBlur, MedianBlur, Blur, RandomContrast, RandomBrightness)
+    ShiftScaleRotate)
 from albumentations.pytorch import ToTensor
 from sklearn.model_selection import train_test_split
-from sklearn.utils import compute_sample_weight
 from torch.utils.data import Dataset
 
 ORIG_SHAPE = (256, 1600)
 
 AUGMENTATIONS_TRAIN = Compose([
     HorizontalFlip(p=0.5),
+    ShiftScaleRotate(shift_limit=(-0.2, 0.2), scale_limit=(-0.2, 0.2), rotate_limit=(-20, 20), border_mode=0, interpolation=1, p=0.2),
     OneOf([
-        RandomGamma(),
-        RandomBrightnessContrast(),
+        RandomBrightnessContrast(brightness_limit=(-0.2, 0.2), contrast_limit=(-0.2, 0.2)),
     ], p=0.2),
-    # OneOf([
-    #     ElasticTransform(alpha=120, sigma=120 * 0.05, alpha_affine=120 * 0.03),
-    #     GridDistortion(),
-    #     OpticalDistortion(distort_limit=2, shift_limit=0.5),
-    # ], p=0.3),
     OneOf([
-        IAAAdditiveGaussianNoise(),
-        GaussNoise(),
-    ], p=0.1),
-    OneOf([
-        MotionBlur(blur_limit=5, p=0.2),
-        MedianBlur(blur_limit=3, p=0.1),
-        Blur(blur_limit=3, p=0.1),
-    ], p=0.1),
-    OneOf([
-        CLAHE(clip_limit=2),
-        RandomBrightnessContrast(),
-    ], p=0.1),
+        ElasticTransform(alpha=120, alpha_affine=120 * 0.03, approximate=False, border_mode=0, interpolation=1, sigma=6, p=0.5),
+        GridDistortion(border_mode=0, distort_limit=(-0.3, 0.3), interpolation=1, num_steps=5, p=0.5),
+        OpticalDistortion(border_mode=0, distort_limit=(-2, 2), interpolation=1, shift_limit=(-0.5, 0.5), p=0.5),
+    ], p=0.3),
     Normalize(),
     ToTensor(num_classes=4, sigmoid=True)
 ], p=1)

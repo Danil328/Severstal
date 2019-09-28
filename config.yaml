@@ -4,11 +4,13 @@ MAIN:
 DATASETS:
   a: 1
 TRAIN:
-  n_epochs: 50
-  batch_size: 64
+  n_epochs: 100
+  batch_size: 32
   learning_rate: 0.0001
+  optimizer: "radam"
   weight_decay: 0.00001
-  prefix: "baseline"
+  scheduler: "cosine"
+  prefix: "miras_radam"
   weight: ""
   log_path: "/home/danil.akhmetov/Projects/Severstal/output/logs"
   model_path: "/home/danil.akhmetov/Projects/Severstal/output/models"
