@@ -5,12 +5,19 @@ DATASETS:
   a: 1
 TRAIN:
   n_epochs: 100
-  batch_size: 32
+  batch_size: 64
   learning_rate: 0.0001
   optimizer: "radam"
   weight_decay: 0.00001
   scheduler: "cosine"
+  swa: 0
   prefix: "miras_radam"
+  weight: ""
+  log_path: "/home/danil.akhmetov/Projects/Severstal/output/logs"
+  model_path: "/home/danil.akhmetov/Projects/Severstal/output/models"
+TEST:
+  prefix: "miras_radam"
+  batch_size: 64
   weight: ""
   log_path: "/home/danil.akhmetov/Projects/Severstal/output/logs"
   model_path: "/home/danil.akhmetov/Projects/Severstal/output/models"

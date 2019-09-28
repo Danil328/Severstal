@@ -39,6 +39,12 @@ AUGMENTATIONS_TEST = Compose([
     ToTensor(num_classes=4, sigmoid=True)
 ], p=1)
 
+AUGMENTATIONS_TEST_FLIPPED = Compose([
+    HorizontalFlip(p=1.0, always_apply=True),
+    Normalize(),
+    ToTensor(num_classes=4, sigmoid=True)
+], p=1)
+
 
 class SteelDataset(Dataset):
     def __init__(self, data_folder, transforms, phase):

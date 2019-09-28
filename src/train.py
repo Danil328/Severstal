@@ -7,6 +7,7 @@ from kekas import Keker, DataOwner
 from torch.utils.data import DataLoader
 from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR, ExponentialLR
+from torchcontrib.optim import SWA
 from tqdm import tqdm
 
 from utils import read_config
@@ -17,7 +18,7 @@ from optimizer import RAdam
 from collections import OrderedDict
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 
 def parse_args():
@@ -29,7 +30,6 @@ def parse_args():
 
 def main():
     args = parse_args()
-    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_number
     config_main = read_config(args.config_file, "MAIN")
     config = read_config(args.config_file, "TRAIN")
     train_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TRAIN, phase='train')
@@ -38,8 +38,7 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=16)
     val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16)
 
-
-    device = torch.device("cuda" if torch.cuda.is_available() else 'cpu')
+    device = torch.device(f"cuda" if torch.cuda.is_available() else 'cpu')
 
     if config['weight'] == "":
         model = smp.Unet('resnet34', encoder_weights='imagenet', activation=None, classes=4)
@@ -73,15 +72,29 @@ def main():
                "hard_dice_4": HardDiceCoef(class_id=3),
                }
 
+    # optimizer
     opt = RAdam if config['optimizer'] == 'radam' else Adam
-    scheduler = CosineAnnealingLR if config['scheduler'] == 'cosine' else ExponentialLR
+    opt_params = {"weight_decay": config['weight_decay']}
+    if config['swa'] > 0:
+        print("Use SWA")
+        opt_params = {"optimizer": opt(params=model.parameters(), weight_decay=config['weight_decay']),
+                      "swa_start":config['n_epochs'] - config['swa'], "swa_freq":10, "swa_lr": 1e-5}
+        opt = SWA
+
+    if config['scheduler'] == 'cosine':
+        scheduler = CosineAnnealingLR
+        sched_params = {"T_max": 8, "eta_min": 1e-6}
+    else:
+        scheduler = ExponentialLR
+        sched_params = {"gamma": 0.9}
+
     keker = Keker(model=model,
                   dataowner=dataowner,
                   criterion=criterion,
                   target_key='mask',
                   metrics=metrics,
                   opt=opt,
-                  opt_params={"weight_decay": config['weight_decay']},
+                  opt_params=opt_params,
                   device=device)
 
     # keker.kek_lr(final_lr=0.1, logdir=config['log_path+"_find_lr")
@@ -105,11 +118,9 @@ def main():
     keker.kek(lr=config['learning_rate'],
               epochs=config['n_epochs'],
               opt=opt,
-              opt_params={"weight_decay": config['weight_decay']},
-              # sched=torch.optim.lr_scheduler.ExponentialLR,
-              # sched_params={"gamma": 0.9},
+              opt_params=opt_params,
               sched=scheduler,
-              sched_params={"T_max": 8, "eta_min": 1e-6},
+              sched_params=sched_params,
               logdir=os.path.join(config['log_path'], config['prefix']),
               cp_saver_params={
                   "savedir": config['model_path'],
