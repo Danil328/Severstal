@@ -1,4 +1,7 @@
+import random
+
 import numpy as np
+import torch
 import yaml
 
 
@@ -38,3 +41,10 @@ def read_config(path, stage:str):
         except yaml.YAMLError as exc:
             print(exc)
             return None
+
+
+def set_global_seeds(i: int):
+    torch.manual_seed(i)
+    torch.cuda.manual_seed_all(i)
+    random.seed(i)
+    np.random.seed(i)
