@@ -216,3 +216,12 @@ class Logger(Callback):
     @staticmethod
     def _get_metrics_string(metrics):
         return ' | '.join('{}: {:.5f}'.format(k, v) for k, v in metrics.items())
+
+
+# class EmptyMaskCallback(Callback):
+#     def __init__(self, start_value:float, end_value:float, n_epochs: int):
+#         self.start_value = start_value
+#         self.delta = (end_value - start_value) / n_epochs
+#
+#     def on_epoch_begin(self, epoch: int, epochs: int, state: DotDict) -> None:
+#         state['core']['dataowner'].train_dl.dataset.update_empty_mask_ratio(self.start_value + self.delta * epoch)

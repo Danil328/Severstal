@@ -40,12 +40,12 @@ class BCEDiceLossWithLog(nn.Module):
 
 
 class BCEDiceLoss(nn.Module):
-    def __init__(self, bce_weight=0.5, dice_weight=0.5):
+    def __init__(self, weights):
         super().__init__()
         self.dice_loss = SoftDiceLoss()
         self.bce = nn.BCELoss()
-        self.bce_weight = bce_weight
-        self.dice_weight = dice_weight
+        self.bce_weight = weights['bce']
+        self.dice_weight = weights['dice']
 
     def forward(self, inputs, target):
         inputs = torch.sigmoid(inputs)

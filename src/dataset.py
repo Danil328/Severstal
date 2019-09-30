@@ -65,7 +65,7 @@ class SteelDataset(Dataset):
     34      284
     4       516
     """
-    def __init__(self, data_folder, transforms, phase):
+    def __init__(self, data_folder, transforms, phase, empty_mask_params: dict = None):
         assert phase in ['train', 'val', 'test'], "Fuck you!"
 
         self.root = data_folder
@@ -75,7 +75,7 @@ class SteelDataset(Dataset):
             self.images = np.asarray(self.split_train_val(glob.glob(os.path.join(self.root, "train_images", "*.jpg"))))
 
             # Get labels for classification
-            self.labels = np.zeros((self.images.shape[0], 4), dtype=np.float)
+            self.labels = np.zeros((self.images.shape[0], 4), dtype=np.float32)
             for idx, image_name in enumerate(tqdm(self.images)):
                 image = cv2.imread(image_name.replace('train_images', 'train_masks').replace('.jpg', '.png'), cv2.IMREAD_UNCHANGED)
                 self.labels[idx] = (np.amax(image, axis=(0, 1)) > 0).astype(float)
@@ -84,6 +84,14 @@ class SteelDataset(Dataset):
             self.non_empty_images = self.images[self.labels.max(axis=1) == 1]
         else:
             self.images = glob.glob(os.path.join(self.root, "test_images", "*.jpg"))
+
+        if empty_mask_params is not None and empty_mask_params['state'] == 'true':
+            self.start_value = empty_mask_params['start_value']
+            self.delta = (empty_mask_params['end_value'] - empty_mask_params['start_value']) / empty_mask_params['n_epochs']
+            self.positive_ratio = self.start_value
+        else:
+            self.positive_ratio = 1.0
+
 
     def __getitem__(self, idx):
         img = cv2.imread(self.images[idx])
@@ -103,22 +111,18 @@ class SteelDataset(Dataset):
         elif self.phase == 'val':
             return val
 
-    def update_empty_mask_ratio(self, value: float):
-        self.images = np.hstack((self.non_empty_images, self.empty_images[:int(value * self.empty_images.shape[0])]))
-
-
-class EmptyMaskCallback(Callback):
-    def __init__(self, start_value:float, end_value:float, n_epochs: int):
-        self.start_value = start_value
-        self.delta = (end_value - start_value) / n_epochs
-
-    def on_epoch_begin(self, epoch: int, epochs: int, state: DotDict) -> None:
-        state['core']['dataowner'].train_dl.dataset.update_empty_mask_ratio(self.start_value + self.delta * epoch)
+    def update_empty_mask_ratio(self, epoch: int):
+        self.positive_ratio = self.start_value + self.delta * epoch
+        self.images = np.hstack((self.non_empty_images, self.empty_images[:int(self.positive_ratio * self.empty_images.shape[0])]))
 
 
 if __name__ == '__main__':
     rnd = np.random.randint(1, 100)
-    dataset = SteelDataset(data_folder='../data', transforms=AUGMENTATIONS_TRAIN, phase='train')
+    dataset = SteelDataset(data_folder='../data', transforms=AUGMENTATIONS_TRAIN, phase='train',
+                           empty_mask_params={"state": "true",
+                                              "start_value": 0.0,
+                                              "end_value": 1.0,
+                                              "n_epochs": 50})
     data = dataset[rnd]
     image = data['image'].numpy()
     mask = data['mask'].numpy()
@@ -129,6 +133,6 @@ if __name__ == '__main__':
     print(dataset.labels.sum(0))
 
     print(f"Len before update {dataset.__len__()}")
-    dataset.update_empty_mask_ratio(0.0)
+    dataset.update_empty_mask_ratio(10)
     print(f"Len after update {dataset.__len__()}")
 

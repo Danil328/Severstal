@@ -47,15 +47,3 @@ class Factory:
                 for metric, params in self.params['metrics'].items()
             }
         )
-
-
-class DataFactory:
-    def __init__(self, params: dict, fold):
-        self.fold = fold
-        self.params = params
-
-    def make_train_loader(self):
-        return make_data(**self.params, mode='train', fold=self.fold)
-
-    def make_val_loader(self):
-        return make_data(**self.params, mode='val', fold=self.fold)

@@ -3,16 +3,18 @@ from pathlib import Path
 from pprint import pprint
 
 import torch
+from torch.utils.data import DataLoader
 
-from src.callbacks import Callbacks, CheckpointSaver, Logger, TensorBoard
-from src.runner import Runner
-from src.utils import read_config, set_global_seeds
+from dataset import SteelDataset, AUGMENTATIONS_TRAIN, AUGMENTATIONS_TEST
+from callbacks import Callbacks, CheckpointSaver, Logger, TensorBoard
+from factory import Factory
+from runner import Runner
+from utils import read_config, set_global_seeds
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('config', type=str)
-    parser.add_argument('--fold', type=str, default=0)
+    parser.add_argument('--config', default="../config.yaml", metavar="FILE", help="path to config file", type=str)
     return parser.parse_args()
 
 
@@ -23,7 +25,7 @@ def create_callbacks(name, dumps):
         [
             Logger(log_dir),
             CheckpointSaver(
-                metric_name='DiceMetric',
+                metric_name='HardDiceCoef',
                 save_dir=save_dir,
                 save_name='epoch_{epoch}.pth',
                 num_checkpoints=4,
@@ -38,13 +40,23 @@ def create_callbacks(name, dumps):
 def main():
     args = parse_args()
     set_global_seeds(666)
-    config = read_config(args.config, stage="TRAIN")
+    config = read_config(args.config, "TRAIN")
+    config_main = read_config(args.config, "MAIN")
     pprint(config)
-    config['train_params']['name'] = f'{config["train_params"]["name"]}/fold{args.fold}'
+    factory = Factory(config['train_params'])
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     callbacks = create_callbacks(config['train_params']['name'], config['dumps'])
     trainer = Runner(stages=config['stages'], factory=factory, callbacks=callbacks, device=device)
-    trainer.fit(data_factory)
+
+
+    train_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TRAIN, phase='train',
+                                 empty_mask_params=config['data_params']['empty_mask_increase'])
+    val_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST, phase='val')
+
+    train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=16)
+    val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16)
+
+    trainer.fit(train_loader, val_loader)
 
 
 if __name__ == '__main__':

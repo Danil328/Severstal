@@ -2,29 +2,24 @@ from collections import defaultdict
 from typing import Dict
 
 import torch
-from torch.optim import Adam
-from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR, ExponentialLR
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
 
-from optimizer import RAdam
+from utils import batch2device
 
 tqdm.monitor_interval = 0
 
 
-def batch2device(data, device):
-    return {k: v if not hasattr(v, 'to') else v.to(device) for k, v in data.items()}
-
 class Runner:
-    def __init__(self, data_loader, model, loss, metrics, device, config, callbacks=None, stages: Dict[str, dict] = None):
-        self.data_loader = data_loader
-        self.model = model
-        self.loss = loss
+    def __init__(self, factory, device, callbacks=None, stages: Dict[str, dict] = None):
+        self.factory = factory
         self.device = device
-        self.config = config
         self.stages = stages
 
-        self.opt = self.create_optimizer()
-        self.scheduler = self.create_scheduler()
+        self._model = None
+        self._loss = None
+        self._metrics = None
+
         self.current_stage = None
         self.current_stage_name = None
         self.global_epoch = 0
@@ -35,27 +30,30 @@ class Runner:
         if callbacks is not None:
             self.callbacks.set_runner(self)
 
-    def create_optimizer(self):
-        opt_params = {"lr":self.config['learning_rate'], "weight_decay": self.config['weight_decay']}
-        return RAdam(opt_params) if self.config['optimizer'] == 'radam' else Adam(opt_params)
+    @property
+    def model(self):
+        if self._model is None:
+            self._model = self.factory.make_model(device=self.device)
+        return self._model
 
-    def create_scheduler(self):
-        if self.config['scheduler'] == 'cosine':
-            scheduler = CosineAnnealingLR
-            sched_params = {"T_max": 8, "eta_min": 1e-5}
-        else:
-            scheduler = ExponentialLR
-            sched_params = {"gamma": 0.9}
-        return scheduler(sched_params)
+    @property
+    def loss(self):
+        if self._loss is None:
+            self._loss = self.factory.make_loss(device=self.device)
+        return self._loss
 
-    def fit(self, data_factory):
+    @property
+    def metrics(self):
+        if self._metrics is None:
+            self._metrics = self.factory.make_metrics()
+        return self._metrics
+
+    def fit(self, train_loader, val_loader):
         self.callbacks.on_train_begin()
         for stage_name, stage in self.stages.items():
             self.current_stage = stage
             self.current_stage_name = stage_name
 
-            train_loader = data_factory.make_train_loader()
-            val_loader = data_factory.make_val_loader()
             self.optimizer = self.factory.make_optimizer(self.model, stage)
             self.scheduler = self.factory.make_scheduler(self.optimizer, stage)
 
@@ -67,8 +65,8 @@ class Runner:
 
     def _run_one_stage(self, train_loader, val_loader):
         for epoch in range(self.current_stage['epochs']):
-            train_loader.sampler.set_epoch(epoch)
-            print(f'positive ratio: {train_loader.sampler.positive_ratio}')
+            train_loader.dataset.update_empty_mask_ratio(epoch)
+            print(f'positive ratio: {train_loader.dataset.positive_ratio}')
             self.callbacks.on_epoch_begin(self.global_epoch)
 
             self.model.train()
@@ -110,10 +108,10 @@ class Runner:
         report = {}
         data = self.batch2device(data)
         images = data['image']
-        labels = data['mask']
-        non_empty_labels = data['non_empty']
+        masks = data['mask']
+        labels = data['label']
         predictions, empty_predictions = self.model(images)
-        loss = self.loss(predictions, labels, empty_predictions, non_empty_labels)
+        loss = self.loss(predictions, masks, empty_predictions, labels)
         report['loss'] = loss.data
 
         if is_train:
@@ -124,8 +122,10 @@ class Runner:
             self.optimizer.zero_grad()
         else:
             for metric, f in self.metrics.functions.items():
-                report[metric] = f(torch.sigmoid(predictions).cpu().numpy(), labels.cpu().numpy())
+                report[metric] = f(predictions, masks)
         return report
 
     def batch2device(self, data: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         return batch2device(data, device=self.device)
+
+
