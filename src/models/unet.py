@@ -6,7 +6,7 @@ import torch
 from torch import nn
 from torch.utils import model_zoo
 
-from src.models.resnet import resnet34
+from models.resnet import resnet34
 
 encoder_params = {
     'resnet34':
