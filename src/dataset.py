@@ -72,15 +72,16 @@ class SteelDataset(Dataset):
         self.transforms = transforms
         self.phase = phase
         if phase != 'test':
-            self.images = self.split_train_val(glob.glob(os.path.join(self.root, "train_images", "*.jpg")))
-            if phase == 'train':
-                self.is_not_empty_images = []
-                for image in tqdm(self.images):
-                    self.is_not_empty_images.append(1.0 if cv2.imread(image).max() > 0 else 0.0)
-                self.is_not_empty_images = np.asarray(self.is_not_empty_images)
-                self.empty_images = self.images[self.is_not_empty_images == 0]
-                self.non_empty_images = self.images[self.is_not_empty_images == 1]
-                self.count_empty_images = len(self.empty_images)
+            self.images = np.asarray(self.split_train_val(glob.glob(os.path.join(self.root, "train_images", "*.jpg"))))
+
+            # Get labels for classification
+            self.labels = np.zeros((self.images.shape[0], 4), dtype=np.float)
+            for idx, image_name in enumerate(tqdm(self.images)):
+                image = cv2.imread(image_name.replace('train_images', 'train_masks').replace('.jpg', '.png'), cv2.IMREAD_UNCHANGED)
+                self.labels[idx] = (np.amax(image, axis=(0, 1)) > 0).astype(float)
+
+            self.empty_images = self.images[self.labels.max(axis=1) == 0]
+            self.non_empty_images = self.images[self.labels.max(axis=1) == 1]
         else:
             self.images = glob.glob(os.path.join(self.root, "test_images", "*.jpg"))
 
@@ -90,7 +91,7 @@ class SteelDataset(Dataset):
         augmented = self.transforms(image=img, mask=mask)
         img = augmented['image']
         mask = augmented['mask']
-        return {"image": img, "mask": mask}
+        return {"image": img, "mask": mask, "label": self.labels[idx]}
 
     def __len__(self):
         return len(self.images)
@@ -103,7 +104,7 @@ class SteelDataset(Dataset):
             return val
 
     def update_empty_mask_ratio(self, value: float):
-        self.images = self.non_empty_images + self.empty_images[:int(value * self.count_empty_images)]
+        self.images = np.hstack((self.non_empty_images, self.empty_images[:int(value * self.empty_images.shape[0])]))
 
 
 class EmptyMaskCallback(Callback):
@@ -112,7 +113,7 @@ class EmptyMaskCallback(Callback):
         self.delta = (end_value - start_value) / n_epochs
 
     def on_epoch_begin(self, epoch: int, epochs: int, state: DotDict) -> None:
-        state['dataowner'].train_dl.dataset.update_empty_mask_ratio(self.start_value + self.delta * epoch)
+        state['core']['dataowner'].train_dl.dataset.update_empty_mask_ratio(self.start_value + self.delta * epoch)
 
 
 if __name__ == '__main__':
@@ -125,3 +126,9 @@ if __name__ == '__main__':
     print(mask.shape)
     print(image.min(), image.max())
     print(mask.min(), mask.max())
+    print(dataset.labels.sum(0))
+
+    print(f"Len before update {dataset.__len__()}")
+    dataset.update_empty_mask_ratio(0.0)
+    print(f"Len after update {dataset.__len__()}")
+

@@ -21,6 +21,8 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 
+# TODO classification head
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config-file", default="../config.yaml", metavar="FILE", help="path to config file", type=str)
@@ -83,7 +85,7 @@ def main():
 
     if config['scheduler'] == 'cosine':
         scheduler = CosineAnnealingLR
-        sched_params = {"T_max": 8, "eta_min": 1e-6}
+        sched_params = {"T_max": 8, "eta_min": 1e-5}
     else:
         scheduler = ExponentialLR
         sched_params = {"gamma": 0.9}
@@ -100,7 +102,7 @@ def main():
     if config['empty_mask_increase']['state'] == "true":
         empty_mask_callback = EmptyMaskCallback(start_value=config['empty_mask_increase']['start_value'],
                                                 end_value=config['empty_mask_increase']['end_value'],
-                                                n_epochs=config['n_epochs'])
+                                                n_epochs=config['empty_mask_increase']['n_epochs'])
         keker.add_callbacks([empty_mask_callback])
 
     keker.kek(lr=config['learning_rate'],
