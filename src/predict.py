@@ -1,24 +1,15 @@
 import argparse
 import os
 import pydoc
-import shutil
-import segmentation_models_pytorch as smp
-import torch
 
-from kekas import Keker, DataOwner
-from torch.utils.data import DataLoader
-from torch.optim import Adam
-from torch.optim.lr_scheduler import CosineAnnealingLR, ExponentialLR
-from torchcontrib.optim import SWA
 import numpy as np
+import torch
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from utils import read_config
-from dataset import SteelDataset, AUGMENTATIONS_TRAIN, AUGMENTATIONS_TEST, AUGMENTATIONS_TEST_FLIPPED
+from dataset import SteelDataset, AUGMENTATIONS_TEST, AUGMENTATIONS_TEST_FLIPPED
 from metrics import dice_coef_numpy
-from metrics import SoftDiceCoef, HardDiceCoef
-from optimizer import RAdam
-from collections import OrderedDict
+from utils import read_config
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"

@@ -14,10 +14,8 @@ from albumentations import (
     Normalize,
     ShiftScaleRotate)
 from albumentations.pytorch import ToTensor
-from kekas.utils import DotDict
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
-from kekas.callbacks import Callback
 from tqdm import tqdm
 
 ORIG_SHAPE = (256, 1600)
