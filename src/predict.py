@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 from dataset import SteelDataset, AUGMENTATIONS_TEST, AUGMENTATIONS_TEST_FLIPPED
 from metrics import dice_coef_numpy
+from models.unet import ResnetSuperVision
 from utils import read_config
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -35,8 +36,8 @@ def main():
 
     device = torch.device(f"cuda" if torch.cuda.is_available() else 'cpu')
 
-    model_name = config['model']
-    model = pydoc.locate(model_name)(**config['model_params'])
+    # model = pydoc.locate(config['model'])(**config['model_params'])
+    model = ResnetSuperVision(**config['model_params'])
     if isinstance(config.get('weights', None), str):
         model.load_state_dict(torch.load(config['weights']))
     model = model.to(device)
