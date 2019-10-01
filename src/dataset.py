@@ -95,11 +95,16 @@ class SteelDataset(Dataset):
 
     def __getitem__(self, idx):
         img = cv2.imread(self.images[idx])
-        mask = cv2.imread(self.images[idx].replace('train_images', 'train_masks').replace('.jpg', '.png'), cv2.IMREAD_UNCHANGED)
-        augmented = self.transforms(image=img, mask=mask)
-        img = augmented['image']
-        mask = augmented['mask']
-        return {"image": img, "mask": mask, "label": self.labels[idx]}
+        if self.phase != 'test':
+            mask = cv2.imread(self.images[idx].replace('train_images', 'train_masks').replace('.jpg', '.png'), cv2.IMREAD_UNCHANGED)
+            augmented = self.transforms(image=img, mask=mask)
+            img = augmented['image']
+            mask = augmented['mask']
+            return {"image": img, "mask": mask, "label": self.labels[idx]}
+        else:
+            augmented = self.transforms(image=img)
+            img = augmented['image']
+            return {"image": img}
 
     def __len__(self):
         return len(self.images)

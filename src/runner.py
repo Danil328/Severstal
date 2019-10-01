@@ -122,7 +122,10 @@ class Runner:
             self.optimizer.zero_grad()
         else:
             for metric, f in self.metrics.functions.items():
-                report[metric] = f(predictions, masks)
+                if metric == 'AccuracyScore':
+                    report[metric] = f(empty_predictions, labels)
+                else:
+                    report[metric] = f(predictions, masks)
         return report
 
     def batch2device(self, data: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:

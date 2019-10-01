@@ -1,7 +1,9 @@
 import argparse
 import os
+import pydoc
 import shutil
 import segmentation_models_pytorch as smp
+import torch
 
 from kekas import Keker, DataOwner
 from torch.utils.data import DataLoader
@@ -14,7 +16,6 @@ from tqdm import tqdm
 from utils import read_config
 from dataset import SteelDataset, AUGMENTATIONS_TRAIN, AUGMENTATIONS_TEST, AUGMENTATIONS_TEST_FLIPPED
 from metrics import dice_coef_numpy
-from loss import *
 from metrics import SoftDiceCoef, HardDiceCoef
 from optimizer import RAdam
 from collections import OrderedDict
@@ -43,17 +44,19 @@ def main():
 
     device = torch.device(f"cuda" if torch.cuda.is_available() else 'cpu')
 
-    model = smp.Unet('resnet34', encoder_weights=None, activation=None, classes=4)
-    model_state = torch.load(config['weight'])
-
-    new_model_state = OrderedDict()
-    for key in model_state.keys():
-        new_model_state[key[7:]] = model_state[key]
-    model.load_state_dict(new_model_state)
+    model_name = config['model']
+    model = pydoc.locate(model_name)(**config['model_params'])
+    if isinstance(config.get('weights', None), str):
+        model.load_state_dict(torch.load(config['weights']))
     model = model.to(device)
     model.eval()
 
-    best_threshold, best_noise_threshold = search_threshold(model, val_loader, device)
+    # best_threshold, best_noise_threshold = search_threshold(model, val_loader, device)
+    best_threshold = 0.8
+    best_noise_threshold = 800
+
+    predicts = predict(model, test_loader, test_loader_flip, device)
+    predicts = apply_thresholds(predicts, best_threshold, best_noise_threshold)
 
 
 def search_threshold(model, val_loader, device):
@@ -63,26 +66,28 @@ def search_threshold(model, val_loader, device):
         for batch in tqdm(val_loader):
             image = batch['image'].to(device)
             mask = batch['mask'].cpu().numpy()
-            predict = model(image).cpu().numpy()
+            predict_mask, predict_label = model(image)
             masks.append(mask)
-            predicts.append(predict)
+            predicts.append(predict_mask.cpu().numpy())
 
-    # TODO convert to array
+    predicts = np.vstack(predicts)
+    masks = np.vstack(masks)
 
-    # Search threshold
-    thresholds = np.arange(0.1, 0.9, 0.5)
+    print("Search threshold ...")
+    thresholds = np.arange(0.1, 0.9, 0.05)
     scores = []
-    for threshold in thresholds:
-        scores.append(dice_coef_numpy(preds=(predicts>threshold).astype(int), trues=masks))
+    for threshold in tqdm(thresholds):
+        score = dice_coef_numpy(preds=(predicts>threshold).astype(int), trues=masks)
+        scores.append(score)
     best_score = np.max(scores)
     best_threshold = thresholds[np.argmax(scores)]
     print(f"Best threshold - {best_threshold}, best score - {best_score}")
 
-    # Search noise threshold
+    print("Search noise threshold ...")
     predicts = (predicts>best_threshold).astype(int)
     thresholds = np.arange(100, 1000, 100)
     scores = []
-    for threshold in thresholds:
+    for threshold in tqdm(thresholds):
         scores.append(dice_coef_numpy(preds=predicts, trues=masks, noise_threshold=threshold))
     best_score = np.max(scores)
     best_noise_threshold = thresholds[np.argmax(scores)]
@@ -90,26 +95,33 @@ def search_threshold(model, val_loader, device):
 
     return best_threshold, best_noise_threshold
 
+
 def predict(model, test_loader, test_loader_flip, device):
     predicts, predicts_flip = [], []
 
     with torch.no_grad():
         for batch in tqdm(test_loader):
             image = batch['image'].to(device)
-            predict = model(image).cpu().numpy()
-            predicts.append(predict)
+            predict_mask, predict_label = model(image)
+            predicts.append(predict_mask.cpu().numpy())
 
     with torch.no_grad():
         for batch in tqdm(test_loader_flip):
             image = batch['image'].to(device)
-            predict = model(image).cpu().numpy()
-            predicts_flip.append(predict)
+            predict_mask, predict_label = model(image)
+            predicts_flip.append(predict_mask.cpu().numpy())
 
-    # TODO convert to array
+    predicts = np.vstack(predicts)
+    predicts_flip = np.vstack(predicts_flip)
 
-    # TODO averaging
+    predicts = predicts * 0.5 + predicts_flip * 0.5
+    return predicts
 
-    # TODO apply thresholds
+
+def apply_thresholds(predicts: np.ndarray, threshold: float, noise_threshold: float):
+    predicts = (predicts>threshold).astype(int)
+    # predicts[predicts.sum(1) < noise_threshold, ...] = 0
+    return predicts
 
 
 

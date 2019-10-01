@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from sklearn.metrics import accuracy_score
 from torch import nn
 
 
@@ -52,3 +53,16 @@ class HardDiceCoef(nn.Module):
         inputs = (inputs > self.threshold).float()
         dice = dice_coef(inputs, target)
         return dice
+
+
+# Classification
+class AccuracyScore(nn.Module):
+    def __init__(self, threshold=0.5):
+        self.threshold = threshold
+        super().__init__()
+
+    def forward(self, inputs, target):
+        inputs = torch.sigmoid(inputs)
+        inputs = (inputs > self.threshold).float()
+        acc = accuracy_score(target.cpu().numpy(), inputs.cpu().numpy())
+        return acc
