@@ -63,6 +63,5 @@ class AccuracyScore(nn.Module):
 
     def forward(self, inputs, target):
         inputs = torch.sigmoid(inputs)
-        inputs = (inputs > self.threshold).float()
-        acc = accuracy_score(target.cpu().numpy(), inputs.cpu().numpy())
+        acc = accuracy_score(target.cpu().numpy(), np.round(inputs.cpu().numpy()))
         return acc

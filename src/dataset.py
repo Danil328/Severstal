@@ -102,7 +102,7 @@ class SteelDataset(Dataset):
         else:
             augmented = self.transforms(image=img)
             img = augmented['image']
-            return {"image": img}
+            return {"image": img, "filename": self.images[idx].split("/")[-1]}
 
     def __len__(self):
         return len(self.images)
