@@ -41,27 +41,33 @@ def main():
 
     # model = pydoc.locate(config['model'])(**config['model_params'])
 
-    # best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device)
-    best_threshold = 0.25
-    best_min_size_threshold = 800
+    best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device)
+    # best_threshold = 0.25
+    # best_min_size_threshold = 800
 
     predict(config, test_loader, best_threshold, best_min_size_threshold, device)
 
 
 def search_threshold(config, val_loader, device):
-    masks, predicts = [], []
-    model = ResnetSuperVision(**config['model_params'])
-    model.load_state_dict(torch.load(glob.glob(os.path.join(config['weights'], config['name'], 'cosine') + "*.pth")[0]))
-    model = model.to(device)
-    model.eval()
+    models = []
+    for weight in glob.glob(os.path.join(config['weights'], config['name'], 'cosine') + "*.pth"):
+        model = ResnetSuperVision(**config['model_params'])
+        model.load_state_dict(torch.load(weight))
+        model = model.to(device)
+        model.eval()
+        models.append(model)
 
+    masks, predicts = [], []
     with torch.no_grad():
-        for batch in tqdm(val_loader):
-            image = batch['image'].to(device)
+        for i, batch in enumerate(tqdm(val_loader)):
+            images = batch["image"].to(device)
             mask = batch['mask'].cpu().numpy()
-            predict_mask, predict_label = model(image)
+            batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
+            for model in models:
+                batch_preds += torch.sigmoid(model(images)[0]).cpu().numpy()
+            batch_preds = batch_preds / len(models)
             masks.append(mask)
-            predicts.append(predict_mask.cpu().numpy())
+            predicts.append(batch_preds)
 
     predicts = np.vstack(predicts)
     masks = np.vstack(masks)
@@ -77,7 +83,6 @@ def search_threshold(config, val_loader, device):
     print(f"Best threshold - {best_threshold}, best score - {best_score}")
 
     print("Search min_size threshold ...")
-    predicts = (predicts>best_threshold).astype(int)
     thresholds = np.arange(1000, 4000, 100)
     scores = []
     for threshold in tqdm(thresholds):
@@ -108,7 +113,7 @@ def predict(config, test_loader, best_threshold, min_size, device):
             batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
             for model in models:
                 batch_preds += torch.sigmoid(model(images)[0]).cpu().numpy()
-            batch_preds /= len(models)
+            batch_preds = batch_preds / len(models)
             for fname, preds in zip(fnames, batch_preds):
                 for cls, pred in enumerate(preds):
                     pred, num = post_process(pred, best_threshold, min_size)

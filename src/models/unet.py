@@ -5,8 +5,10 @@ import os
 import torch
 from torch import nn
 from torch.utils import model_zoo
+import torch.nn.functional as F
+from torchsummary import summary
 
-from models.resnet import resnet34
+from models.resnet import resnet34, resnet18
 
 encoder_params = {
     'resnet34':
@@ -15,6 +17,14 @@ encoder_params = {
             'decoder_filters': [64, 128, 256, 256],
             'last_upsample': 64,
             'init_op': resnet34,
+            'url': None,
+        },
+    'resnet18':
+        {
+            'filters': [64, 64, 128, 256, 512],
+            'decoder_filters': [64, 128, 256, 256],
+            'last_upsample': 64,
+            'init_op': resnet18,
             'url': None,
         }
 }
@@ -105,17 +115,13 @@ class EncoderDecoder(AbstractModel):
         if encoder_params[encoder_name]['url'] is not None:
             self.initialize_encoder(encoder, encoder_params[encoder_name]['url'], num_channels != 3)
 
-    # noinspection PyCallingNonCallable
     def forward(self, x):
-        # x, angles = x
         enc_results = []
         for stage in self.encoder_stages:
             x = stage(x)
             enc_results.append(torch.cat(x, dim=1) if isinstance(x, tuple) else x.clone())
 
         last_dec_out = enc_results[-1]
-        # size = last_dec_out.size(2)
-        # last_dec_out = torch.cat([last_dec_out, F.upsample(angles, size=(size, size), mode="nearest")], dim=1)
         x = last_dec_out
         for idx, bottleneck in enumerate(self.bottlenecks):
             rev_idx = -(idx + 1)
@@ -213,8 +219,10 @@ class Resnet(EncoderDecoder):
 class ResnetSuperVision(Resnet):
     def __init__(self, seg_classes, backbone_arch):
         super().__init__(seg_classes, backbone_arch=backbone_arch)
-        self.avgpool = nn.AdaptiveAvgPool2d(1)
-        self.fc = nn.Linear(512, 4)
+        self.avgpool = nn.AdaptiveMaxPool2d(1)
+        self.fc_1 = nn.Linear(512, 128)
+        self.bn = nn.BatchNorm1d(128)
+        self.fc_2 = nn.Linear(128, 4)
 
     def forward(self, x):
         enc_results = []
@@ -226,8 +234,8 @@ class ResnetSuperVision(Resnet):
         x = last_dec_out
 
         x_cls = self.avgpool(x)
-        x_cls = x_cls.view(x_cls.size(0), -1)
-        x_cls = self.fc(x_cls)#.view(x_cls.size(0))
+        x_cls = F.relu(self.bn(self.fc_1(x_cls.view(x_cls.size(0), -1))))
+        x_cls = self.fc_2(x_cls)
 
         for idx, bottleneck in enumerate(self.bottlenecks):
             rev_idx = -(idx + 1)
@@ -248,9 +256,10 @@ if __name__ == '__main__':
     import numpy as np
 
     with torch.no_grad():
-        images = torch.from_numpy(np.zeros((4, 3, 256, 256), dtype='float32'))
+        images = torch.from_numpy(np.zeros((16, 3, 256, 256), dtype='float32'))
         p1, p2 = d(images)
         print(p1.shape)
         print(p2.shape)
 
-    print(d)
+    summary(d, input_size=(3, 256, 1600), device='cpu')
+

@@ -183,33 +183,21 @@ class TverskyLoss(nn.Module):
         self.eps: float = 1e-6
 
     def forward(self, input: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-        if not torch.is_tensor(input):
-            raise TypeError("Input type is not a torch.Tensor. Got {}"
-                            .format(type(input)))
-        if not len(input.shape) == 4:
-            raise ValueError("Invalid input shape, we expect BxNxHxW. Got: {}"
-                             .format(input.shape))
-        if not input.shape[-2:] == target.shape[-2:]:
-            raise ValueError("input and target shapes must be the same. Got: {}"
-                             .format(input.shape, input.shape))
-        if not input.device == target.device:
-            raise ValueError(
-                "input and target must be in the same device. Got: {}" .format(
-                    input.device, target.device))
 
-        input = input.contiguous().view(input.size(0), -1).float()
-        target = target.contiguous().view(target.size(0), -1).float()
+        batch_size = input.size(0)
+        input = input.contiguous().view(batch_size, -1)
+        target = target.contiguous().view(batch_size, -1)
 
         # compute the actual dice score
-        intersection = torch.sum(input * target, 1)
-        fps = torch.sum(input * (torch.tensor(1.) - target), 1)
-        fns = torch.sum((torch.tensor(1.) - input) * target, 1)
+        intersection = torch.sum(input * target, dim=1)
+        fps = torch.sum(input * (1 - target), dim=1)
+        fns = torch.sum((1 - input) * target, dim=1)
 
         numerator = intersection
         denominator = intersection + self.alpha * fps + self.beta * fns
-        tversky_score = numerator / (denominator + self.eps)
-        tversky_loss = (torch.tensor(1.) - tversky_score) ** self.gamma
-        return torch.mean(tversky_loss)
+        tversky_score = (numerator + self.eps) / (denominator + self.eps)
+        tversky_loss = (1 - tversky_score) ** self.gamma
+        return tversky_loss.mean()
 
 
 """

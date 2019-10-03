@@ -1,5 +1,6 @@
 import glob
 import os
+import random
 
 import cv2
 import numpy as np
@@ -16,22 +17,22 @@ from albumentations import (
     ShiftScaleRotate)
 from albumentations.pytorch import ToTensor
 from sklearn.model_selection import train_test_split
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Sampler
 from tqdm import tqdm
 
 ORIG_SHAPE = (256, 1600)
 
 AUGMENTATIONS_TRAIN = Compose([
     HorizontalFlip(p=0.5),
-    ShiftScaleRotate(shift_limit=(-0.2, 0.2), scale_limit=(-0.2, 0.2), rotate_limit=(-20, 20), border_mode=0, interpolation=1, p=0.2),
+    ShiftScaleRotate(shift_limit=(-0.2, 0.2), scale_limit=(-0.2, 0.2), rotate_limit=(-20, 20), border_mode=0, interpolation=1, p=0.25),
     OneOf([
         RandomBrightnessContrast(brightness_limit=(-0.2, 0.2), contrast_limit=(-0.2, 0.2)),
-    ], p=0.2),
-    OneOf([
-        ElasticTransform(alpha=120, alpha_affine=120 * 0.03, approximate=False, border_mode=0, interpolation=1, sigma=6, p=0.5),
-        GridDistortion(border_mode=0, distort_limit=(-0.3, 0.3), interpolation=1, num_steps=5, p=0.5),
-        OpticalDistortion(border_mode=0, distort_limit=(-2, 2), interpolation=1, shift_limit=(-0.5, 0.5), p=0.5),
-    ], p=0.3),
+    ], p=0.25),
+    # OneOf([
+    #     ElasticTransform(alpha=120, alpha_affine=120 * 0.03, approximate=False, border_mode=0, interpolation=1, sigma=6, p=0.5),
+    #     GridDistortion(border_mode=0, distort_limit=(-0.3, 0.3), interpolation=1, num_steps=5, p=0.5),
+    #     OpticalDistortion(border_mode=0, distort_limit=(-2, 2), interpolation=1, shift_limit=(-0.5, 0.5), p=0.5),
+    # ], p=0.3),
     Normalize(),
     ToTensor(num_classes=4, sigmoid=True)
 ], p=1)
@@ -118,6 +119,40 @@ class SteelDataset(Dataset):
     def update_empty_mask_ratio(self, epoch: int):
         self.positive_ratio = self.start_value + self.delta * epoch
         self.images = np.hstack((self.non_empty_images, self.empty_images[:int(self.positive_ratio * self.empty_images.shape[0])]))
+
+
+class FourBalanceClassSampler(Sampler):
+    def __init__(self, labels):
+        label = labels.reshape(-1,4)
+        label = np.hstack([label.sum(1,keepdims=True)==0,label]).T
+
+        self.neg_index  = np.where(label[0])[0]
+        self.pos1_index = np.where(label[1])[0]
+        self.pos2_index = np.where(label[2])[0]
+        self.pos3_index = np.where(label[3])[0]
+        self.pos4_index = np.where(label[4])[0]
+
+        #assume we know neg is majority class
+        num_neg = len(self.neg_index)
+        self.length = 4*num_neg
+
+
+    def __iter__(self):
+        neg = self.neg_index.copy()
+        random.shuffle(neg)
+        num_neg = len(self.neg_index)
+
+        pos1 = np.random.choice(self.pos1_index, num_neg, replace=True)
+        pos2 = np.random.choice(self.pos2_index, num_neg, replace=True)
+        pos3 = np.random.choice(self.pos3_index, num_neg, replace=True)
+        pos4 = np.random.choice(self.pos4_index, num_neg, replace=True)
+
+        l = np.stack([neg,pos1,pos2,pos3,pos4]).T
+        l = l.reshape(-1)
+        return iter(l)
+
+    def __len__(self):
+        return self.length
 
 
 if __name__ == '__main__':

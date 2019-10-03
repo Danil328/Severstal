@@ -11,15 +11,15 @@ TRAIN:
     backbone_arch: resnet34
 
   train_params:
-    name: &name resnet34_768_unet_v5
+    name: &name resnet34_768_unet_v6
     model: *model
     model_params: *model_params
     loss: losses.ComboSuperVisionLoss
     loss_params:
       weights:
-        focal: 1
-        tversky: 1
-      sv_weight: 0.1
+        bce: 3
+        dice: 1
+      sv_weight: 0.2
     metrics:
       metrics.HardDiceCoef:
         threshold: 0.5

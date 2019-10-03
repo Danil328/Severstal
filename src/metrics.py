@@ -74,5 +74,5 @@ class JaccardScore(nn.Module):
 
     def forward(self, inputs, target):
         inputs = torch.sigmoid(inputs)
-        acc = jaccard_score(target.cpu().numpy(), np.round(inputs.cpu().numpy()), average='macro')
+        acc = jaccard_score(target.cpu().numpy(), np.round(inputs.cpu().numpy()), average='micro')
         return acc

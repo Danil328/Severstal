@@ -9,14 +9,12 @@ from .focal import FocalLoss2d
 from .jaccard import JaccardLoss
 from .lovasz import LovaszLoss, LovaszLossSigmoid
 
-EPSILON = 1e-6
-
 
 class ComboLoss(nn.Module):
     def __init__(self, weights, per_image=False, channel_weights=None, channel_losses=None):
         super().__init__()
         if channel_weights is None:
-            channel_weights = [1, 0.5, 0.5]
+            channel_weights = [1, 1, 1, 1]
         self.weights = weights
         self.bce = nn.BCELoss() #StableBCELoss()
         self.dice = DiceLoss(per_image=False)
@@ -24,7 +22,7 @@ class ComboLoss(nn.Module):
         self.lovasz = LovaszLoss(per_image=per_image)
         self.lovasz_sigmoid = LovaszLossSigmoid(per_image=per_image)
         self.focal = FocalLoss2d()
-        self.tversky = TverskyLoss(alpha=0.7, beta=0.3, gamma=2.0)
+        self.tversky = TverskyLoss(alpha=0.5, beta=0.5, gamma=2.0)
         self.mapping = {
             'bce': self.bce,
             'dice': self.dice,
@@ -35,7 +33,7 @@ class ComboLoss(nn.Module):
             'tversky': self.tversky
         }
         self.expect_sigmoid = {'dice', 'focal', 'jaccard', 'lovasz_sigmoid', 'tversky', 'bce'}
-        self.per_channel = {'dice', 'jaccard', 'lovasz_sigmoid'}
+        self.per_channel = {'dice', 'jaccard', 'lovasz_sigmoid', 'tversky'}
         self.values = {}
         self.channel_weights = channel_weights
         self.channel_losses = channel_losses
@@ -56,7 +54,6 @@ class ComboLoss(nn.Module):
                             sigmoid_input[:, c, ...] if k in self.expect_sigmoid else outputs[:, c, ...],
                             targets[:, c, ...]
                         )
-
             else:
                 val = self.mapping[k](sigmoid_input if k in self.expect_sigmoid else outputs, targets)
 

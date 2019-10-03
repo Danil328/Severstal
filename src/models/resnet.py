@@ -228,3 +228,9 @@ def resnet34(pretrained=True):
     if pretrained:
         model.init_weights('https://download.pytorch.org/models/resnet34-333f7ec4.pth')
     return model
+
+def resnet18(pretrained=True):
+    model = ResNet(depth=18, normalize=dict(type='BN', frozen=True), norm_eval=True)
+    if pretrained:
+        model.init_weights('https://download.pytorch.org/models/resnet18-5c106cde.pth')
+    return model
