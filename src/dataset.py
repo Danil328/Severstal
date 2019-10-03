@@ -3,6 +3,7 @@ import os
 
 import cv2
 import numpy as np
+import torch
 from albumentations import (
     HorizontalFlip,
     Compose,
@@ -98,7 +99,7 @@ class SteelDataset(Dataset):
             augmented = self.transforms(image=img, mask=mask)
             img = augmented['image']
             mask = augmented['mask']
-            return {"image": img, "mask": mask, "label": self.labels[idx]}
+            return {"image": img, "mask": mask, "label": torch.tensor(self.labels[idx], dtype=torch.float)}
         else:
             augmented = self.transforms(image=img)
             img = augmented['image']
@@ -129,8 +130,10 @@ if __name__ == '__main__':
     data = dataset[rnd]
     image = data['image'].numpy()
     mask = data['mask'].numpy()
+    label = data['label'].numpy()
     print(image.shape)
     print(mask.shape)
+    print(label.shape)
     print(image.min(), image.max())
     print(mask.min(), mask.max())
     print(dataset.labels.sum(0))

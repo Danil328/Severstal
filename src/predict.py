@@ -51,7 +51,7 @@ def main():
 def search_threshold(config, val_loader, device):
     masks, predicts = [], []
     model = ResnetSuperVision(**config['model_params'])
-    model.load_state_dict(torch.load(glob.glob(config.get('weights', None) + "*.pth")[0]))
+    model.load_state_dict(torch.load(glob.glob(os.path.join(config['weights'], config['name'], 'cosine') + "*.pth")[0]))
     model = model.to(device)
     model.eval()
 
@@ -92,7 +92,7 @@ def search_threshold(config, val_loader, device):
 
 def predict(config, test_loader, best_threshold, min_size, device):
     models = []
-    for weight in glob.glob(config.get('weights', None) + "*.pth"):
+    for weight in glob.glob(os.path.join(config['weights'], config['name'], 'cosine') + "*.pth"):
         model = ResnetSuperVision(**config['model_params'])
         model.load_state_dict(torch.load(weight))
         model = model.to(device)

@@ -122,7 +122,7 @@ class Runner:
             self.optimizer.zero_grad()
         else:
             for metric, f in self.metrics.functions.items():
-                if metric == 'AccuracyScore':
+                if metric in ['AccuracyScore', 'JaccardScore']:
                     report[metric] = f(empty_predictions, labels)
                 else:
                     report[metric] = f(predictions, masks)

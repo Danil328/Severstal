@@ -35,7 +35,7 @@ class ComboLoss(nn.Module):
             'tversky': self.tversky
         }
         self.expect_sigmoid = {'dice', 'focal', 'jaccard', 'lovasz_sigmoid', 'tversky', 'bce'}
-        self.per_channel = {'dice', 'jaccard', 'lovasz_sigmoid', 'tversky'}
+        self.per_channel = {'dice', 'jaccard', 'lovasz_sigmoid'}
         self.values = {}
         self.channel_weights = channel_weights
         self.channel_losses = channel_losses

@@ -59,7 +59,8 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=16)
     val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16)
 
-    shutil.copy(args.config, os.path.join(config['dumps']['path'], config['dumps']['weights'], config['train_params']['name']))
+    os.makedirs(os.path.join(config['dumps']['path'], config['dumps']['weights'], config['train_params']['name']), exist_ok=True)
+    shutil.copy(args.config, os.path.join(config['dumps']['path'], config['dumps']['weights'], config['train_params']['name'], args.config.split('/')[-1]))
     trainer.fit(train_loader, val_loader)
 
 
