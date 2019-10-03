@@ -1,4 +1,6 @@
 import argparse
+import os
+import shutil
 from pathlib import Path
 from pprint import pprint
 
@@ -57,6 +59,7 @@ def main():
     train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=16)
     val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16)
 
+    shutil.copy(args.config, os.path.join(config['dumps']['path'], config['dumps']['weights'], config['train_params']['name']))
     trainer.fit(train_loader, val_loader)
 
 

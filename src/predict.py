@@ -40,21 +40,20 @@ def main():
     device = torch.device(f"cuda" if torch.cuda.is_available() else 'cpu')
 
     # model = pydoc.locate(config['model'])(**config['model_params'])
+
+    # best_threshold, best_noise_threshold = search_threshold(config, val_loader, device)
+    best_threshold = 0.25
+    min_size = 800
+
+    predict(config, test_loader, best_threshold, min_size, device)
+
+
+def search_threshold(config, val_loader, device):
+    masks, predicts = [], []
     model = ResnetSuperVision(**config['model_params'])
-    if isinstance(config.get('weights', None), str):
-        model.load_state_dict(torch.load(config['weights']))
+    model.load_state_dict(torch.load(glob.glob(config.get('weights', None) + "*.pth")[0]))
     model = model.to(device)
     model.eval()
-
-    best_threshold, best_noise_threshold = search_threshold(model, val_loader, device)
-    # best_threshold = 0.8
-    min_size = 3500
-
-    predict(model, test_loader, best_threshold, min_size, device)
-
-
-def search_threshold(model, val_loader, device):
-    masks, predicts = [], []
 
     with torch.no_grad():
         for batch in tqdm(val_loader):
@@ -105,7 +104,7 @@ def predict(config, test_loader, best_threshold, min_size, device):
         for i, batch in enumerate(tqdm(test_loader)):
             fnames = batch["filename"]
             images = batch["image"].to(device)
-            batch_preds = np.zeros((config["batch_size"], 4, 256, 1600), dtype=np.float32)
+            batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
             for model in models:
                 batch_preds += torch.sigmoid(model(images)[0]).cpu().numpy()
             batch_preds /= len(models)
@@ -120,7 +119,7 @@ def predict(config, test_loader, best_threshold, min_size, device):
     df = pd.DataFrame()
     df["ImageId_ClassId"] = image_names
     df["EncodedPixels"] = predictions
-    df.to_csv(os.path.join(config.get('weights', None), "submission.csv"), index=False)
+    df.to_csv(os.path.join(config['weights'], config['name'], "submission.csv"), index=False)
 
 
 def post_process(probability, threshold, min_size):

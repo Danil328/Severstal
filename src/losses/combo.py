@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from losses.my_loss import TverskyLoss
 from .bce import StableBCELoss
 from .dice import DiceLoss
 from .focal import FocalLoss2d
@@ -17,22 +18,24 @@ class ComboLoss(nn.Module):
         if channel_weights is None:
             channel_weights = [1, 0.5, 0.5]
         self.weights = weights
-        self.bce = StableBCELoss()
+        self.bce = nn.BCELoss() #StableBCELoss()
         self.dice = DiceLoss(per_image=False)
         self.jaccard = JaccardLoss(per_image=False)
         self.lovasz = LovaszLoss(per_image=per_image)
         self.lovasz_sigmoid = LovaszLossSigmoid(per_image=per_image)
         self.focal = FocalLoss2d()
+        self.tversky = TverskyLoss(alpha=0.7, beta=0.3, gamma=2.0)
         self.mapping = {
             'bce': self.bce,
             'dice': self.dice,
             'focal': self.focal,
             'jaccard': self.jaccard,
             'lovasz': self.lovasz,
-            'lovasz_sigmoid': self.lovasz_sigmoid
+            'lovasz_sigmoid': self.lovasz_sigmoid,
+            'tversky': self.tversky
         }
-        self.expect_sigmoid = {'dice', 'focal', 'jaccard', 'lovasz_sigmoid'}
-        self.per_channel = {'dice', 'jaccard', 'lovasz_sigmoid'}
+        self.expect_sigmoid = {'dice', 'focal', 'jaccard', 'lovasz_sigmoid', 'tversky', 'bce'}
+        self.per_channel = {'dice', 'jaccard', 'lovasz_sigmoid', 'tversky'}
         self.values = {}
         self.channel_weights = channel_weights
         self.channel_losses = channel_losses

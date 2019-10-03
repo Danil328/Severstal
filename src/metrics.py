@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, jaccard_score
 from torch import nn
 
 
@@ -64,4 +64,15 @@ class AccuracyScore(nn.Module):
     def forward(self, inputs, target):
         inputs = torch.sigmoid(inputs)
         acc = accuracy_score(target.cpu().numpy(), np.round(inputs.cpu().numpy()))
+        return acc
+
+
+class JaccardScore(nn.Module):
+    def __init__(self, threshold=0.5):
+        self.threshold = threshold
+        super().__init__()
+
+    def forward(self, inputs, target):
+        inputs = torch.sigmoid(inputs)
+        acc = jaccard_score(target.cpu().numpy(), np.round(inputs.cpu().numpy()))
         return acc
