@@ -41,11 +41,11 @@ def main():
 
     # model = pydoc.locate(config['model'])(**config['model_params'])
 
-    # best_threshold, best_noise_threshold = search_threshold(config, val_loader, device)
+    # best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device)
     best_threshold = 0.25
-    min_size = 800
+    best_min_size_threshold = 800
 
-    predict(config, test_loader, best_threshold, min_size, device)
+    predict(config, test_loader, best_threshold, best_min_size_threshold, device)
 
 
 def search_threshold(config, val_loader, device):
@@ -76,17 +76,18 @@ def search_threshold(config, val_loader, device):
     best_threshold = thresholds[np.argmax(scores)]
     print(f"Best threshold - {best_threshold}, best score - {best_score}")
 
-    print("Search noise threshold ...")
+    print("Search min_size threshold ...")
     predicts = (predicts>best_threshold).astype(int)
-    thresholds = np.arange(100, 1000, 100)
+    thresholds = np.arange(1000, 4000, 100)
     scores = []
     for threshold in tqdm(thresholds):
-        scores.append(dice_coef_numpy(preds=predicts, trues=masks, noise_threshold=threshold))
+        tmp = post_process(predicts, best_threshold, threshold)[0]
+        scores.append(dice_coef_numpy(preds=tmp, trues=masks))
     best_score = np.max(scores)
-    best_noise_threshold = thresholds[np.argmax(scores)]
-    print(f"Best noise threshold - {best_noise_threshold}, best score - {best_score}")
+    best_min_size_threshold = thresholds[np.argmax(scores)]
+    print(f"Best min_size threshold - {best_min_size_threshold}, best score - {best_score}")
 
-    return best_threshold, best_noise_threshold
+    return best_threshold, best_min_size_threshold
 
 
 def predict(config, test_loader, best_threshold, min_size, device):
