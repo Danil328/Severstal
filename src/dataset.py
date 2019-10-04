@@ -3,6 +3,7 @@ import os
 
 import cv2
 import numpy as np
+import torch
 from albumentations import (
     HorizontalFlip,
     Compose,
@@ -65,7 +66,7 @@ class SteelDataset(Dataset):
     34      284
     4       516
     """
-    def __init__(self, data_folder, transforms, phase):
+    def __init__(self, data_folder, transforms, phase, empty_mask_params: dict = None):
         assert phase in ['train', 'val', 'test'], "Fuck you!"
 
         self.root = data_folder
@@ -75,7 +76,7 @@ class SteelDataset(Dataset):
             self.images = np.asarray(self.split_train_val(glob.glob(os.path.join(self.root, "train_images", "*.jpg"))))
 
             # Get labels for classification
-            self.labels = np.zeros((self.images.shape[0], 4), dtype=np.float)
+            self.labels = np.zeros((self.images.shape[0], 4), dtype=np.float32)
             for idx, image_name in enumerate(tqdm(self.images)):
                 image = cv2.imread(image_name.replace('train_images', 'train_masks').replace('.jpg', '.png'), cv2.IMREAD_UNCHANGED)
                 self.labels[idx] = (np.amax(image, axis=(0, 1)) > 0).astype(float)
@@ -85,35 +86,48 @@ class SteelDataset(Dataset):
         else:
             self.images = glob.glob(os.path.join(self.root, "test_images", "*.jpg"))
 
+        if empty_mask_params is not None and empty_mask_params['state'] == 'true':
+            self.start_value = empty_mask_params['start_value']
+            self.delta = (empty_mask_params['end_value'] - empty_mask_params['start_value']) / empty_mask_params['n_epochs']
+            self.positive_ratio = self.start_value
+        else:
+            self.positive_ratio = 1.0
+
+
     def __getitem__(self, idx):
         img = cv2.imread(self.images[idx])
-        mask = cv2.imread(self.images[idx].replace('train_images', 'train_masks').replace('.jpg', '.png'), cv2.IMREAD_UNCHANGED)
-        augmented = self.transforms(image=img, mask=mask)
-        img = augmented['image']
-        mask = augmented['mask']
-        return {"image": img, "mask": mask, "label": self.labels[idx]}
+        if self.phase != 'test':
+            mask = cv2.imread(self.images[idx].replace('train_images', 'train_masks').replace('.jpg', '.png'), cv2.IMREAD_UNCHANGED)
+            augmented = self.transforms(image=img, mask=mask)
+            img = augmented['image']
+            mask = augmented['mask']
+            return {"image": img, "mask": mask, "label": torch.tensor(self.labels[idx], dtype=torch.float)}
+        else:
+            augmented = self.transforms(image=img)
+            img = augmented['image']
+            return {"image": img, "filename": self.images[idx].split("/")[-1]}
 
     def __len__(self):
         return len(self.images)
 
     def split_train_val(self, images: list):
-        train, val = train_test_split(images, test_size=0.2, random_state=17)
+        train, val = train_test_split(images, test_size=0.1, random_state=17)
         if self.phase == 'train':
             return train
         elif self.phase == 'val':
             return val
 
-    def update_empty_mask_ratio(self, value: float):
-        self.images = np.hstack((self.non_empty_images, self.empty_images[:int(value * self.empty_images.shape[0])]))
+    def update_empty_mask_ratio(self, epoch: int):
+        self.positive_ratio = self.start_value + self.delta * epoch
+        self.images = np.hstack((self.non_empty_images, self.empty_images[:int(self.positive_ratio * self.empty_images.shape[0])]))
 
 
 class EmptyMaskCallback(Callback):
-    def __init__(self, start_value:float, end_value:float, n_epochs: int):
-        self.start_value = start_value
-        self.delta = (end_value - start_value) / n_epochs
+    def __init__(self):
+        pass
 
     def on_epoch_begin(self, epoch: int, epochs: int, state: DotDict) -> None:
-        state['core']['dataowner'].train_dl.dataset.update_empty_mask_ratio(self.start_value + self.delta * epoch)
+        state['core']['dataowner'].train_dl.dataset.update_empty_mask_ratio(epoch)
 
 
 if __name__ == '__main__':
