@@ -1,9 +1,10 @@
 import argparse
 import os
 import shutil
-import segmentation_models_pytorch as smp
+from efficientnet_pytorch import EfficientNet
 
 from kekas import Keker, DataOwner
+from kekas.metrics import bce_accuracy
 from torch.utils.data import DataLoader
 from torch.optim import Adam
 from torch.optim.lr_scheduler import CosineAnnealingLR, ExponentialLR
@@ -13,15 +14,31 @@ from tqdm import tqdm
 from utils import read_config
 from dataset import SteelDataset, EmptyMaskCallback, AUGMENTATIONS_TRAIN, AUGMENTATIONS_TEST
 from loss import *
-from metrics import SoftDiceCoef, HardDiceCoef
+from metrics import SoftDiceCoef, HardDiceCoef, average_precision, roc_auc
 from optimizer import RAdam
 from collections import OrderedDict
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 
-# TODO classification head
+class Model(nn.Module):
+    def __init__(self, base_model):
+        super(Model, self).__init__()
+        self.base_model = base_model
+        self.classifier = nn.Sequential(
+            self.base_model,
+            nn.BatchNorm1d(1000),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(1000, 4),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, x):
+        x = self.classifier(x).squeeze()
+        return x
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -44,9 +61,9 @@ def main():
     device = torch.device(f"cuda" if torch.cuda.is_available() else 'cpu')
 
     if config['weight'] == "":
-        model = smp.Unet('resnet34', encoder_weights='imagenet', activation=None, classes=4)
+        model = EfficientNet.from_pretrained('efficientnet-b0')
     else:
-        model = smp.Unet('resnet34', encoder_weights=None, activation=None, classes=4)
+        model = EfficientNet.from_name('efficientnet-b0')
         model_state = torch.load(config['weight'])
 
         new_model_state = OrderedDict()
@@ -56,22 +73,16 @@ def main():
 
     model = model.to(device)
 
-    criterion = BCEDiceLoss(bce_weight=0.7, dice_weight=0.3)
-    # criterion = FocalDiceLossWithoutLog(bce_weight=1.0, dice_weight=1.0)
-    # criterion = lovasz_hinge()
-    # criterion = FocalTverskyLossWithoutLog(alpha=0.5, beta=0.5, gamma=2.0, add_weight=False, pos_weight=2.0, neg_weight=1.0, bce_weight=1.0, dice_weight=1.0)
+    criterion = nn.BCELoss()
 
     if os.path.exists(os.path.join(config['log_path'], config['prefix'])):
         shutil.rmtree(os.path.join(config['log_path'], config['prefix']))
     else:
         os.makedirs(os.path.join(config['log_path'], config['prefix']))
 
-    metrics = {"soft_dice": SoftDiceCoef(),
-               "hard_dice": HardDiceCoef(threshold=0.5),
-               "hard_dice_1": HardDiceCoef(class_id=0),
-               "hard_dice_2": HardDiceCoef(class_id=1),
-               "hard_dice_3": HardDiceCoef(class_id=2),
-               "hard_dice_4": HardDiceCoef(class_id=3),
+    metrics = {"acc": bce_accuracy,
+               "roc_auc": roc_auc,
+               "average_precision": average_precision
                }
 
     # optimizer
@@ -85,7 +96,7 @@ def main():
 
     if config['scheduler'] == 'cosine':
         scheduler = CosineAnnealingLR
-        sched_params = {"T_max": 8, "eta_min": 1e-5}
+        sched_params = {"T_max": 10, "eta_min": 1e-6}
     else:
         scheduler = ExponentialLR
         sched_params = {"gamma": 0.9}
@@ -93,7 +104,7 @@ def main():
     keker = Keker(model=model,
                   dataowner=dataowner,
                   criterion=criterion,
-                  target_key='mask',
+                  target_key='label',
                   metrics=metrics,
                   opt=opt,
                   opt_params=opt_params,

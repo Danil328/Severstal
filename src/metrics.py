@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+from sklearn.metrics import average_precision_score, roc_auc_score
 from torch import nn
 
 
@@ -52,3 +53,23 @@ class HardDiceCoef(nn.Module):
         inputs = (inputs > self.threshold).float()
         dice = dice_coef(inputs, target)
         return dice
+
+
+def average_precision(target: torch.Tensor,
+                 preds: torch.Tensor) -> float:
+    if target.max() == 0:
+        target = torch.cat((target, torch.tensor([1.0], device='cuda')))
+        preds = torch.cat((preds, torch.tensor([1.0], device='cuda')))
+    if target.min() == 1:
+        target = torch.cat((target, torch.tensor([0.0], device='cuda')))
+        preds = torch.cat((preds, torch.tensor([0.0], device='cuda')))
+    target = target.cpu().detach().numpy()
+    preds = preds.cpu().detach().numpy()
+    return average_precision_score(target, preds)
+
+
+def roc_auc(target: torch.Tensor,
+            preds: torch.Tensor) -> float:
+    target = target.cpu().detach().numpy()
+    preds = preds.cpu().detach().numpy()
+    return roc_auc_score(target, preds)
