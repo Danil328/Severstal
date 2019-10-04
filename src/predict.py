@@ -83,10 +83,14 @@ def search_threshold(config, val_loader, device):
     print(f"Best threshold - {best_threshold}, best score - {best_score}")
 
     print("Search min_size threshold ...")
+    predicts = (predicts > threshold).astype(np.uint8)
     thresholds = np.arange(1000, 4000, 100)
     scores = []
     for threshold in tqdm(thresholds):
-        tmp = post_process(predicts, best_threshold, threshold)[0]
+        tmp = predicts.copy()
+        for i in range(tmp.shape[0]):
+            for j in range(tmp.shape[1]):
+                tmp[i,j] = post_process(predicts, best_threshold, threshold, isVal=True)[0]
         scores.append(dice_coef_numpy(preds=tmp, trues=masks))
     best_score = np.max(scores)
     best_min_size_threshold = thresholds[np.argmax(scores)]
@@ -128,10 +132,11 @@ def predict(config, test_loader, best_threshold, min_size, device):
     df.to_csv(os.path.join(config['weights'], config['name'], "submission.csv"), index=False)
 
 
-def post_process(probability, threshold, min_size):
+def post_process(mask, threshold, min_size, isVal=False):
     '''Post processing of each predicted mask, components with lesser number of pixels
     than `min_size` are ignored'''
-    mask = cv2.threshold(probability, threshold, 1, cv2.THRESH_BINARY)[1]
+    if isVal:
+        mask = cv2.threshold(mask, threshold, 1, cv2.THRESH_BINARY)[1]
     num_component, component = cv2.connectedComponents(mask.astype(np.uint8))
     predictions = np.zeros((256, 1600), np.float32)
     num = 0

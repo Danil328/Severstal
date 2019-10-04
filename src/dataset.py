@@ -110,7 +110,7 @@ class SteelDataset(Dataset):
         return len(self.images)
 
     def split_train_val(self, images: list):
-        train, val = train_test_split(images, test_size=0.2, random_state=17)
+        train, val = train_test_split(images, test_size=0.1, random_state=17)
         if self.phase == 'train':
             return train
         elif self.phase == 'val':

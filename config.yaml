@@ -3,7 +3,7 @@ MAIN:
   path_to_data: "/home/danil.akhmetov/Projects/Severstal/data/"
 TRAIN:
   n_epochs: &n_epochs 100
-  batch_size: 32
+  batch_size: 24
 
   model: &model models.unet.ResnetSuperVision
   model_params: &model_params
@@ -18,7 +18,7 @@ TRAIN:
     loss_params:
       weights:
         bce: 3
-        dice: 1
+        dice: n1
       sv_weight: 0.2
     metrics:
       metrics.HardDiceCoef:
@@ -36,7 +36,7 @@ TRAIN:
         weight_decay: 0.00001
       scheduler: CosineAnnealingLR
       scheduler_params:
-        T_max: 8
+        T_max: 10
         eta_min: 0.000001
       epochs: *n_epochs
 

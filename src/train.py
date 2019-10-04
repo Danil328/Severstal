@@ -56,7 +56,7 @@ def main():
                                  empty_mask_params=config['data_params']['empty_mask_increase'])
     val_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST, phase='val')
 
-    train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=16)
+    train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=16, drop_last=True)
     val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16)
 
     os.makedirs(os.path.join(config['dumps']['path'], config['dumps']['weights'], config['train_params']['name']), exist_ok=True)
