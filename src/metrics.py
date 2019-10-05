@@ -13,12 +13,9 @@ def dice_coef(preds, trues, smooth=1e-3):
     return dice
 
 
-def dice_coef_numpy(preds, trues, smooth=1e-3, noise_threshold=0):
+def dice_coef_numpy(preds, trues, smooth=1e-3):
     preds = preds.reshape(preds.shape[0], -1)
     trues = trues.reshape(trues.shape[0], -1)
-
-    if noise_threshold > 0:
-        preds[preds.sum(1) < noise_threshold, ...] = 0
 
     inter = np.sum(preds * trues, 1)
     dice = np.mean((2.0 * inter + smooth) / (preds.sum(1) + trues.sum(1) + smooth))

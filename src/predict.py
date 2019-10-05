@@ -42,15 +42,16 @@ def main():
     # model = pydoc.locate(config['model'])(**config['model_params'])
 
     best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device)
-    # best_threshold = 0.25
-    # best_min_size_threshold = 800
+    # best_threshold = 0.5
+    # best_min_size_threshold = 1000
 
     predict(config, test_loader, best_threshold, best_min_size_threshold, device)
 
 
 def search_threshold(config, val_loader, device):
     models = []
-    for weight in glob.glob(os.path.join(config['weights'], config['name'], 'cosine') + "*.pth"):
+
+    for weight in glob.glob(os.path.join(config['weights'], config['name'], 'cosine/') + "*.pth"):
         model = ResnetSuperVision(**config['model_params'])
         model.load_state_dict(torch.load(weight))
         model = model.to(device)
@@ -66,6 +67,7 @@ def search_threshold(config, val_loader, device):
             for model in models:
                 batch_preds += torch.sigmoid(model(images)[0]).cpu().numpy()
             batch_preds = batch_preds / len(models)
+
             masks.append(mask)
             predicts.append(batch_preds)
 
@@ -73,7 +75,7 @@ def search_threshold(config, val_loader, device):
     masks = np.vstack(masks)
 
     print("Search threshold ...")
-    thresholds = np.arange(0.1, 0.9, 0.05)
+    thresholds = np.arange(0.25, 0.9, 0.05)
     scores = []
     for threshold in tqdm(thresholds):
         score = dice_coef_numpy(preds=(predicts>threshold).astype(int), trues=masks)
@@ -81,27 +83,31 @@ def search_threshold(config, val_loader, device):
     best_score = np.max(scores)
     best_threshold = thresholds[np.argmax(scores)]
     print(f"Best threshold - {best_threshold}, best score - {best_score}")
+    print(f"Scores: {scores}")
 
     print("Search min_size threshold ...")
-    predicts = (predicts > threshold).astype(np.uint8)
+    predicts = (predicts > best_threshold).astype(np.uint8)
     thresholds = np.arange(1000, 4000, 100)
     scores = []
     for threshold in tqdm(thresholds):
         tmp = predicts.copy()
         for i in range(tmp.shape[0]):
             for j in range(tmp.shape[1]):
-                tmp[i,j] = post_process(predicts, best_threshold, threshold, isVal=True)[0]
-        scores.append(dice_coef_numpy(preds=tmp, trues=masks))
+                tmp[i,j] = post_process(tmp[i,j], best_threshold, threshold, isVal=True)[0]
+        score = dice_coef_numpy(preds=tmp, trues=masks)
+        print(score)
+        scores.append(score)
     best_score = np.max(scores)
     best_min_size_threshold = thresholds[np.argmax(scores)]
     print(f"Best min_size threshold - {best_min_size_threshold}, best score - {best_score}")
+    print(f"Scores: {scores}")
 
     return best_threshold, best_min_size_threshold
 
 
 def predict(config, test_loader, best_threshold, min_size, device):
     models = []
-    for weight in glob.glob(os.path.join(config['weights'], config['name'], 'cosine') + "*.pth"):
+    for weight in glob.glob(os.path.join(config['weights'], config['name'], 'cosine/') + "*.pth"):
         model = ResnetSuperVision(**config['model_params'])
         model.load_state_dict(torch.load(weight))
         model = model.to(device)
@@ -135,7 +141,7 @@ def predict(config, test_loader, best_threshold, min_size, device):
 def post_process(mask, threshold, min_size, isVal=False):
     '''Post processing of each predicted mask, components with lesser number of pixels
     than `min_size` are ignored'''
-    if isVal:
+    if not isVal:
         mask = cv2.threshold(mask, threshold, 1, cv2.THRESH_BINARY)[1]
     num_component, component = cv2.connectedComponents(mask.astype(np.uint8))
     predictions = np.zeros((256, 1600), np.float32)
