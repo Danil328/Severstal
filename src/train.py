@@ -7,7 +7,7 @@ from pprint import pprint
 import torch
 from torch.utils.data import DataLoader
 
-from dataset import SteelDataset, AUGMENTATIONS_TRAIN, AUGMENTATIONS_TEST
+from dataset import SteelDataset, AUGMENTATIONS_TRAIN, AUGMENTATIONS_TEST, FourBalanceClassSampler
 from callbacks import Callbacks, CheckpointSaver, Logger, TensorBoard
 from factory import Factory
 from runner import Runner
@@ -54,6 +54,7 @@ def main():
 
     train_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TRAIN, phase='train',
                                  empty_mask_params=config['data_params']['empty_mask_increase'])
+    # sampler = FourBalanceClassSampler(labels=train_dataset.labels)
     val_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST, phase='val')
 
     train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=16, drop_last=True)

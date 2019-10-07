@@ -22,6 +22,15 @@ def dice_coef_numpy(preds, trues, smooth=1e-3):
     return dice
 
 
+def dice_coef_numpy_competition(preds, trues, smooth=1e-3):
+    preds = preds.reshape(preds.shape[0], -1)
+    trues = trues.reshape(trues.shape[0], -1)
+
+    inter = np.sum(preds * trues, 1) * 0.75
+    dice = np.mean((2.0 * inter + smooth) / (preds.sum(1) + trues.sum(1) + smooth))
+    return dice
+
+
 class SoftDiceCoef(nn.Module):
     def __init__(self, class_id=-1):
         self.class_id = class_id

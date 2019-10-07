@@ -18,7 +18,7 @@ class ComboLoss(nn.Module):
         self.weights = weights
 
         # https://www.kaggle.com/c/severstal-steel-defect-detection/discussion/110188#latest-637863
-        self.bce = nn.BCELoss(weight=torch.tensor([1.0, 0.75])) #StableBCELoss()
+        self.bce = nn.BCELoss() #StableBCELoss()
 
         self.dice = DiceLoss(per_image=False)
         self.jaccard = JaccardLoss(per_image=False)

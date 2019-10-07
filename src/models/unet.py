@@ -220,9 +220,14 @@ class ResnetSuperVision(Resnet):
     def __init__(self, seg_classes, backbone_arch):
         super().__init__(seg_classes, backbone_arch=backbone_arch)
         self.avgpool = nn.AdaptiveMaxPool2d(1)
-        self.fc_1 = nn.Linear(512, 128)
-        self.bn = nn.BatchNorm1d(128)
-        self.fc_2 = nn.Linear(128, 4)
+        self.cls = nn.Sequential(
+            nn.Dropout(0.2),
+            nn.Linear(512, 128),
+            nn.BatchNorm1d(128),
+            nn.ELU(),
+            nn.Linear(128, 4),
+            nn.Sigmoid()
+        )
 
     def forward(self, x):
         enc_results = []
@@ -234,8 +239,7 @@ class ResnetSuperVision(Resnet):
         x = last_dec_out
 
         x_cls = self.avgpool(x)
-        x_cls = F.relu(self.bn(self.fc_1(x_cls.view(x_cls.size(0), -1))))
-        x_cls = self.fc_2(x_cls)
+        x_cls = self.cls(x_cls.view(x_cls.size(0), -1))
 
         for idx, bottleneck in enumerate(self.bottlenecks):
             rev_idx = -(idx + 1)

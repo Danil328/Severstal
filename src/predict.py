@@ -43,7 +43,7 @@ def main():
 
     best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device)
     # best_threshold = 0.5
-    # best_min_size_threshold = 1000
+    # best_min_size_threshold = 2000
 
     predict(config, test_loader, best_threshold, best_min_size_threshold, device)
 
@@ -87,7 +87,7 @@ def search_threshold(config, val_loader, device):
 
     print("Search min_size threshold ...")
     predicts = (predicts > best_threshold).astype(np.uint8)
-    thresholds = np.arange(1000, 4000, 100)
+    thresholds = np.arange(100, 4000, 500)
     scores = []
     for threshold in tqdm(thresholds):
         tmp = predicts.copy()
