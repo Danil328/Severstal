@@ -66,12 +66,10 @@ class ComboLoss(nn.Module):
 
 
 class ComboSuperVisionLoss(ComboLoss):
-    def __init__(self, weights, per_image=False, channel_weights=(1.0, 1.0, 1.0, 1.0), channel_losses=None, sv_weight=0.15):
+    def __init__(self, weights, per_image=False, channel_weights=(1.0, 1.0, 1.0, 1.0), channel_losses=None):
         super().__init__(weights, per_image, channel_weights, channel_losses)
-        self.sv_weight = sv_weight
 
     def forward(self, *input):
-        outputs, targets, sv_outputs, sv_targets = input
+        outputs, targets = input
         mask_loss = super().forward(outputs, targets)
-        supervision_loss = F.binary_cross_entropy_with_logits(sv_outputs, sv_targets)
-        return self.sv_weight * supervision_loss + (1 - self.sv_weight) * mask_loss
+        return mask_loss

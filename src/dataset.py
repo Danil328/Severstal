@@ -14,7 +14,8 @@ from albumentations import (
     OneOf,
     RandomBrightnessContrast,
     Normalize,
-    ShiftScaleRotate)
+    ShiftScaleRotate,
+    CropNonEmptyMaskIfExists)
 from albumentations.pytorch import ToTensor
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, Sampler
@@ -49,6 +50,28 @@ AUGMENTATIONS_TEST_FLIPPED = Compose([
 ], p=1)
 
 
+AUGMENTATIONS_TRAIN_CROP = Compose([
+    CropNonEmptyMaskIfExists(height=256, width=448, always_apply=True),
+    HorizontalFlip(p=0.5),
+    ShiftScaleRotate(shift_limit=(-0.2, 0.2), scale_limit=(-0.2, 0.2), rotate_limit=(-20, 20), border_mode=0, interpolation=1, p=0.25),
+    OneOf([
+        RandomBrightnessContrast(brightness_limit=(-0.2, 0.2), contrast_limit=(-0.2, 0.2)),
+    ], p=0.25),
+    # OneOf([
+    #     ElasticTransform(alpha=120, alpha_affine=120 * 0.03, approximate=False, border_mode=0, interpolation=1, sigma=6, p=0.5),
+    #     GridDistortion(border_mode=0, distort_limit=(-0.3, 0.3), interpolation=1, num_steps=5, p=0.5),
+    #     OpticalDistortion(border_mode=0, distort_limit=(-2, 2), interpolation=1, shift_limit=(-0.5, 0.5), p=0.5),
+    # ], p=0.3),
+    Normalize(),
+    ToTensor(num_classes=4, sigmoid=True)
+], p=1)
+
+AUGMENTATIONS_TEST_CROP = Compose([
+    CropNonEmptyMaskIfExists(height=256, width=448, always_apply=True),
+    Normalize(),
+    ToTensor(num_classes=4, sigmoid=True)
+], p=1)
+
 class SteelDataset(Dataset):
     """
     0 - empty mask
@@ -72,7 +95,7 @@ class SteelDataset(Dataset):
         self.transforms = transforms
         self.phase = phase
         if phase != 'test':
-            self.images = np.asarray(self.split_train_val(glob.glob(os.path.join(self.root, "train_images", "*.jpg"))))
+            self.images = np.asarray(self.split_train_val(glob.glob(os.path.join(self.root, "train_images", "*.jpg"))))# [:200]
 
             # Get labels for classification
             self.labels = np.zeros((self.images.shape[0], 4), dtype=np.float32)

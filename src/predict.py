@@ -14,6 +14,7 @@ from dataset import SteelDataset, AUGMENTATIONS_TEST, AUGMENTATIONS_TEST_FLIPPED
 from metrics import dice_coef_numpy
 from models.unet import ResnetSuperVision
 from utils import read_config, mask2rle
+import segmentation_models_pytorch as smp
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
@@ -39,11 +40,9 @@ def main():
 
     device = torch.device(f"cuda" if torch.cuda.is_available() else 'cpu')
 
-    # model = pydoc.locate(config['model'])(**config['model_params'])
-
-    best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device)
-    # best_threshold = 0.5
-    # best_min_size_threshold = 2000
+    # best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device)
+    best_threshold = 0.85
+    best_min_size_threshold = 600
 
     predict(config, test_loader, best_threshold, best_min_size_threshold, device)
 
@@ -52,7 +51,12 @@ def search_threshold(config, val_loader, device):
     models = []
 
     for weight in glob.glob(os.path.join(config['weights'], config['name'], 'cosine/') + "*.pth"):
-        model = ResnetSuperVision(**config['model_params'])
+        if 'smp' in config['model']:
+            model = smp.Unet(encoder_name=config['model_params']['backbone_arch'],
+                             encoder_weights=None,
+                             classes=config['model_params']['seg_classes'])
+        else:
+            model = ResnetSuperVision(**config['model_params'])
         model.load_state_dict(torch.load(weight))
         model = model.to(device)
         model.eval()
@@ -64,8 +68,19 @@ def search_threshold(config, val_loader, device):
             images = batch["image"].to(device)
             mask = batch['mask'].cpu().numpy()
             batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
-            for model in models:
-                batch_preds += torch.sigmoid(model(images)[0]).cpu().numpy()
+            if config['type'] == 'crop':
+                for model in models:
+                    tmp_batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
+                    for step in np.arange(0, 1600, 384)[:-1]:
+                        tmp_pred = torch.sigmoid(model(images[:,:,:,step:step+448])).cpu().numpy()
+                        tmp_batch_preds[:,:,:,step:step+448] += tmp_pred
+                    tmp_batch_preds[:,:,:,384:384+64] /= 2
+                    tmp_batch_preds[:,:,:,2*384:2*384+64] /= 2
+                    tmp_batch_preds[:,:,:,3*384:3*384+64] /= 2
+                    batch_preds += tmp_batch_preds
+            else:
+                for model in models:
+                    batch_preds += torch.sigmoid(model(images)).cpu().numpy()
             batch_preds = batch_preds / len(models)
 
             masks.append(mask)
@@ -79,6 +94,7 @@ def search_threshold(config, val_loader, device):
     scores = []
     for threshold in tqdm(thresholds):
         score = dice_coef_numpy(preds=(predicts>threshold).astype(int), trues=masks)
+        print(score)
         scores.append(score)
     best_score = np.max(scores)
     best_threshold = thresholds[np.argmax(scores)]
@@ -108,7 +124,12 @@ def search_threshold(config, val_loader, device):
 def predict(config, test_loader, best_threshold, min_size, device):
     models = []
     for weight in glob.glob(os.path.join(config['weights'], config['name'], 'cosine/') + "*.pth"):
-        model = ResnetSuperVision(**config['model_params'])
+        if 'smp' in config['model']:
+            model = smp.Unet(encoder_name=config['model_params']['backbone_arch'],
+                             encoder_weights=None,
+                             classes=config['model_params']['seg_classes'])
+        else:
+            model = ResnetSuperVision(**config['model_params'])
         model.load_state_dict(torch.load(weight))
         model = model.to(device)
         model.eval()
@@ -121,8 +142,19 @@ def predict(config, test_loader, best_threshold, min_size, device):
             fnames = batch["filename"]
             images = batch["image"].to(device)
             batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
-            for model in models:
-                batch_preds += torch.sigmoid(model(images)[0]).cpu().numpy()
+            if config['type'] == 'crop':
+                for model in models:
+                    tmp_batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
+                    for step in np.arange(0, 1600, 384)[:-1]:
+                        tmp_pred = torch.sigmoid(model(images[:, :, :, step:step + 448])).cpu().numpy()
+                        tmp_batch_preds[:, :, :, step:step + 448] += tmp_pred
+                    tmp_batch_preds[:, :, :, 384:384 + 64] /= 2
+                    tmp_batch_preds[:, :, :, 2 * 384:2 * 384 + 64] /= 2
+                    tmp_batch_preds[:, :, :, 3 * 384:3 * 384 + 64] /= 2
+                    batch_preds += tmp_batch_preds
+            else:
+                for model in models:
+                    batch_preds += torch.sigmoid(model(images)).cpu().numpy()
             batch_preds = batch_preds / len(models)
             for fname, preds in zip(fnames, batch_preds):
                 for cls, pred in enumerate(preds):

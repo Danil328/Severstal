@@ -218,10 +218,17 @@ class Logger(Callback):
         return ' | '.join('{}: {:.5f}'.format(k, v) for k, v in metrics.items())
 
 
-# class EmptyMaskCallback(Callback):
-#     def __init__(self, start_value:float, end_value:float, n_epochs: int):
-#         self.start_value = start_value
-#         self.delta = (end_value - start_value) / n_epochs
-#
-#     def on_epoch_begin(self, epoch: int, epochs: int, state: DotDict) -> None:
-#         state['core']['dataowner'].train_dl.dataset.update_empty_mask_ratio(self.start_value + self.delta * epoch)
+class FreezerCallback(Callback):
+    def __init__(self, n_epochs: int):
+        self.n_epochs = n_epochs
+
+    def on_train_begin(self):
+        if self.n_epochs > 0:
+            for param in self.runner.model.encoder.parameters():
+                param.requires_grad = False
+
+    def on_epoch_end(self, epoch):
+        if 0 < self.n_epochs < epoch:
+            for param in self.runner.model.encoder.parameters():
+                param.requires_grad = True
+

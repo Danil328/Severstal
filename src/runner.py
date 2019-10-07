@@ -58,6 +58,7 @@ class Runner:
             self.scheduler = self.factory.make_scheduler(self.optimizer, stage)
 
             self.callbacks.on_stage_begin()
+
             self._run_one_stage(train_loader, val_loader)
             self.callbacks.on_stage_end()
             torch.cuda.empty_cache()
@@ -109,9 +110,8 @@ class Runner:
         data = self.batch2device(data)
         images = data['image']
         masks = data['mask']
-        labels = data['label']
-        predictions, empty_predictions = self.model(images)
-        loss = self.loss(predictions, masks, empty_predictions, labels)
+        predictions = self.model(images)
+        loss = self.loss(predictions, masks)
         report['loss'] = loss.data
 
         if is_train:
@@ -121,16 +121,10 @@ class Runner:
             self.optimizer.step()
             self.optimizer.zero_grad()
             for metric, f in self.metrics.functions.items():
-                if metric in ['AccuracyScore', 'JaccardScore']:
-                    pass
-                else:
-                    report['train_' + metric] = f(predictions, masks)
+                report['train_' + metric] = f(predictions, masks)
         else:
             for metric, f in self.metrics.functions.items():
-                if metric in ['AccuracyScore', 'JaccardScore']:
-                    report[metric] = f(empty_predictions, labels)
-                else:
-                    report[metric] = f(predictions, masks)
+                report[metric] = f(predictions, masks)
         return report
 
     def batch2device(self, data: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:

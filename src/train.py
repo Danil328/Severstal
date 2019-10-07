@@ -7,8 +7,8 @@ from pprint import pprint
 import torch
 from torch.utils.data import DataLoader
 
-from dataset import SteelDataset, AUGMENTATIONS_TRAIN, AUGMENTATIONS_TEST, FourBalanceClassSampler
-from callbacks import Callbacks, CheckpointSaver, Logger, TensorBoard
+from dataset import SteelDataset, AUGMENTATIONS_TRAIN, AUGMENTATIONS_TEST, AUGMENTATIONS_TRAIN_CROP, AUGMENTATIONS_TEST_CROP, FourBalanceClassSampler
+from callbacks import Callbacks, CheckpointSaver, Logger, TensorBoard, FreezerCallback
 from factory import Factory
 from runner import Runner
 from utils import read_config, set_global_seeds
@@ -21,7 +21,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def create_callbacks(name, dumps):
+def create_callbacks(name, dumps, n_epochs_freeze):
     log_dir = Path(dumps['path']) / dumps['logs'] / name
     save_dir = Path(dumps['path']) / dumps['weights'] / name
     callbacks = Callbacks(
@@ -34,7 +34,8 @@ def create_callbacks(name, dumps):
                 num_checkpoints=4,
                 mode='max'
             ),
-            TensorBoard(str(log_dir))
+            TensorBoard(str(log_dir)),
+            FreezerCallback(n_epochs=n_epochs_freeze)
         ]
     )
     return callbacks
@@ -48,14 +49,15 @@ def main():
     pprint(config)
     factory = Factory(config['train_params'])
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    callbacks = create_callbacks(config['train_params']['name'], config['dumps'])
+    callbacks = create_callbacks(config['train_params']['name'], config['dumps'], config['train_params']['n_epochs_freeze'])
     trainer = Runner(stages=config['stages'], factory=factory, callbacks=callbacks, device=device)
 
-
-    train_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TRAIN, phase='train',
+    aug_train = AUGMENTATIONS_TRAIN_CROP if config['train_params']['type'] == 'crop' else AUGMENTATIONS_TRAIN
+    aug_test = AUGMENTATIONS_TEST_CROP if config['train_params']['type'] == 'crop' else AUGMENTATIONS_TEST
+    train_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=aug_train, phase='train',
                                  empty_mask_params=config['data_params']['empty_mask_increase'])
     # sampler = FourBalanceClassSampler(labels=train_dataset.labels)
-    val_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST, phase='val')
+    val_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=aug_test, phase='val')
 
     train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=16, drop_last=True)
     val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16)

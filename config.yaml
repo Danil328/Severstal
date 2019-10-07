@@ -3,36 +3,36 @@ MAIN:
   path_to_data: "/home/danil.akhmetov/Projects/Severstal/data/"
 TRAIN:
   n_epochs: &n_epochs 100
-  batch_size: 40
+  batch_size: 64
 
-  model: &model models.unet.ResnetSuperVision
+  model: &model smp_resnet34_v1
   model_params: &model_params
     seg_classes: 4
+    encoder_weights: imagenet
     backbone_arch: resnet34
 
   train_params:
-    name: &name resnet34_768_unet_v10
+    name: &name smp_resnet34_crop_v1
+    type: crop
     model: *model
     model_params: *model_params
     loss: losses.ComboSuperVisionLoss
+    n_epochs_freeze: 10
     loss_params:
       weights:
         bce: 3
         dice: 1
-      sv_weight: 0.01
     metrics:
       metrics.HardDiceCoef:
         threshold: 0.5
       metrics.SoftDiceCoef:
         class_id: -1
-      metrics.JaccardScore:
-        threshold: 0.5
 
   stages:
     cosine:
       optimizer: optimizer.RAdam
       optimizer_params:
-        lr: 0.00075
+        lr: 0.000075
         weight_decay: 0.00001
       scheduler: CosineAnnealingLR
       scheduler_params:
@@ -55,6 +55,7 @@ TRAIN:
 
 TEST:
   name: *name
+  type: crop
   batch_size: 64
   model: *model
   model_params: *model_params
