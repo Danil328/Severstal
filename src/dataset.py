@@ -57,11 +57,6 @@ AUGMENTATIONS_TRAIN_CROP = Compose([
     OneOf([
         RandomBrightnessContrast(brightness_limit=(-0.2, 0.2), contrast_limit=(-0.2, 0.2)),
     ], p=0.25),
-    # OneOf([
-    #     ElasticTransform(alpha=120, alpha_affine=120 * 0.03, approximate=False, border_mode=0, interpolation=1, sigma=6, p=0.5),
-    #     GridDistortion(border_mode=0, distort_limit=(-0.3, 0.3), interpolation=1, num_steps=5, p=0.5),
-    #     OpticalDistortion(border_mode=0, distort_limit=(-2, 2), interpolation=1, shift_limit=(-0.5, 0.5), p=0.5),
-    # ], p=0.3),
     Normalize(),
     ToTensor(num_classes=4, sigmoid=True)
 ], p=1)

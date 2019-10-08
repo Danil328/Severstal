@@ -2,17 +2,18 @@ MAIN:
   path_to_project: "/home/danil.akhmetov/Projects/Severstal/"
   path_to_data: "/home/danil.akhmetov/Projects/Severstal/data/"
 TRAIN:
-  n_epochs: &n_epochs 100
-  batch_size: 32
+  n_epochs: &n_epochs 110
+  batch_size: 64
 
   model: &model smp_efb3
   model_params: &model_params
-    seg_classes: 4
+    classes: 4
     encoder_weights: imagenet
-    backbone_arch: efficientnet-b3
+    encoder_name: efficientnet-b3
+    attention_type: scse
 
   train_params:
-    name: &name smp_efb3_crop_v1
+    name: &name smp_efb3_crop_v2
     type: crop
     model: *model
     model_params: *model_params
@@ -33,7 +34,7 @@ TRAIN:
       optimizer: optimizer.RAdam
       optimizer_params:
         lr: 0.0001
-        weight_decay: 0.00001
+        weight_decay: 0.00002
       scheduler: CosineAnnealingLR
       scheduler_params:
         T_max: 10

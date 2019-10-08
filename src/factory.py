@@ -2,7 +2,7 @@ import pydoc
 
 import torch
 from torch.nn import DataParallel
-import segmentation_models_pytorch as smp
+import models.segmentation_models_pytorch_danil as smp
 
 
 class Metrics:
@@ -21,9 +21,7 @@ class Factory:
     def make_model(self, device) -> torch.nn.Module:
         model_name = self.params['model']
         if 'smp' in model_name:
-            model = smp.Unet(encoder_name=self.params['model_params']['backbone_arch'],
-                             encoder_weights=self.params['model_params']['encoder_weights'],
-                             classes=self.params['model_params']['seg_classes'])
+            model = smp.Unet(**self.params['model_params'])
         else:
             model = pydoc.locate(model_name)(**self.params['model_params'])
         if isinstance(self.params.get('weights', None), str):

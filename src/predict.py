@@ -14,7 +14,7 @@ from dataset import SteelDataset, AUGMENTATIONS_TEST, AUGMENTATIONS_TEST_FLIPPED
 from metrics import dice_coef_numpy
 from models.unet import ResnetSuperVision
 from utils import read_config, mask2rle
-import segmentation_models_pytorch as smp
+import models.segmentation_models_pytorch_danil as smp
 
 
 def parse_args():
