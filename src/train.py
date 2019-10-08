@@ -14,7 +14,6 @@ from runner import Runner
 from utils import read_config, set_global_seeds
 
 
-
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', default="../config.yaml", metavar="FILE", help="path to config file", type=str)

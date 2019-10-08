@@ -40,9 +40,9 @@ def main():
 
     device = torch.device(f"cuda" if torch.cuda.is_available() else 'cpu')
 
-    # best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device)
-    best_threshold = 0.85
-    best_min_size_threshold = 600
+    best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device)
+    # best_threshold = 0.85
+    # best_min_size_threshold = 600
 
     predict(config, test_loader, best_threshold, best_min_size_threshold, device)
 
@@ -135,6 +135,11 @@ def predict(config, test_loader, best_threshold, min_size, device):
         model.eval()
         models.append(model)
 
+    if len(config['cls_predict']) > 0:
+        cls = pd.read_csv(config['cls_predict'])
+        cls.index = cls.ImageId_ClassId.values
+        cls.drop_duplicates(inplace=True)
+
     predictions = []
     image_names = []
     with torch.no_grad():
@@ -158,7 +163,13 @@ def predict(config, test_loader, best_threshold, min_size, device):
             batch_preds = batch_preds / len(models)
             for fname, preds in zip(fnames, batch_preds):
                 for cls, pred in enumerate(preds):
-                    pred, num = post_process(pred, best_threshold, min_size)
+                    if len(config['cls_predict']) > 0:
+                        if cls.loc['004f40c73.jpg']['is_mask_empty'] == 1:
+                            pred = np.zeros(256, 1600)
+                        else:
+                            pred, num = post_process(pred, best_threshold, min_size)
+                    else:
+                        pred, num = post_process(pred, best_threshold, min_size)
                     rle = mask2rle(pred)
                     name = fname + f"_{cls + 1}"
                     image_names.append(name)

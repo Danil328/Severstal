@@ -95,7 +95,7 @@ class SteelDataset(Dataset):
         self.transforms = transforms
         self.phase = phase
         if phase != 'test':
-            self.images = np.asarray(self.split_train_val(glob.glob(os.path.join(self.root, "train_images", "*.jpg"))))# [:200]
+            self.images = np.asarray(self.split_train_val(glob.glob(os.path.join(self.root, "train_images", "*.jpg"))))#[:200]
 
             # Get labels for classification
             self.labels = np.zeros((self.images.shape[0], 4), dtype=np.float32)

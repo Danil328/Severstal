@@ -224,11 +224,21 @@ class FreezerCallback(Callback):
 
     def on_train_begin(self):
         if self.n_epochs > 0:
-            for param in self.runner.model.encoder.parameters():
-                param.requires_grad = False
+            if hasattr(self.runner.model, 'module'):
+                for param in self.runner.model.module.encoder.parameters():
+                    param.requires_grad = False
+            else:
+                for param in self.runner.model.encoder.parameters():
+                    param.requires_grad = False
+
+
 
     def on_epoch_end(self, epoch):
         if 0 < self.n_epochs < epoch:
-            for param in self.runner.model.encoder.parameters():
-                param.requires_grad = True
+            if hasattr(self.runner.model, 'module'):
+                for param in self.runner.model.module.encoder.parameters():
+                    param.requires_grad = True
+            else:
+                for param in self.runner.model.encoder.parameters():
+                    param.requires_grad = True
 
