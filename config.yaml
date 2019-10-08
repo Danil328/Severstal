@@ -5,7 +5,7 @@ TRAIN:
   n_epochs: &n_epochs 100
   batch_size: 32
 
-  model: &model smp_efb3_crop_v1
+  model: &model smp_efb3
   model_params: &model_params
     seg_classes: 4
     encoder_weights: imagenet
@@ -56,11 +56,14 @@ TRAIN:
 TEST:
   name: *name
   type: crop
+  # type: full
   batch_size: 64
   model: *model
   model_params: *model_params
   weights: /home/danil.akhmetov/Projects/Severstal/output/weights
-  cls_predict: /home/danil.akhmetov/Projects/Severstal/output/classification_lb.csv
+  cls_predict: ''
+  TTA: 'false'
+  #/home/danil.akhmetov/Projects/Severstal/output/classification_lb.csv
 
 
 

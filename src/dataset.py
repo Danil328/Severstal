@@ -106,7 +106,7 @@ class SteelDataset(Dataset):
             self.empty_images = self.images[self.labels.max(axis=1) == 0]
             self.non_empty_images = self.images[self.labels.max(axis=1) == 1]
         else:
-            self.images = glob.glob(os.path.join(self.root, "test_images", "*.jpg"))
+            self.images = glob.glob(os.path.join(self.root, "test_images", "*.jpg"))#[:200]
 
         if empty_mask_params is not None and empty_mask_params['state'] == 'true':
             self.start_value = empty_mask_params['start_value']
