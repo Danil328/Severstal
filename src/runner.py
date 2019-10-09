@@ -110,8 +110,9 @@ class Runner:
         data = self.batch2device(data)
         images = data['image']
         masks = data['mask']
-        predictions = self.model(images)
-        loss = self.loss(predictions, masks)
+        labels = data['label']
+        predictions, predictions_cls = self.model(images)
+        loss = self.loss(predictions, masks, predictions_cls, labels)
         report['loss'] = loss.data
 
         if is_train:
@@ -121,10 +122,14 @@ class Runner:
             self.optimizer.step()
             self.optimizer.zero_grad()
             for metric, f in self.metrics.functions.items():
-                report['train_' + metric] = f(predictions, masks)
+                if metric not in ['JaccardScore', 'AccuracyScore']:
+                    report['train_' + metric] = f(predictions, masks)
         else:
             for metric, f in self.metrics.functions.items():
-                report[metric] = f(predictions, masks)
+                if metric in ['JaccardScore', 'AccuracyScore']:
+                    report[metric] = f(predictions_cls, labels)
+                else:
+                    report[metric] = f(predictions, masks)
         return report
 
     def batch2device(self, data: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:

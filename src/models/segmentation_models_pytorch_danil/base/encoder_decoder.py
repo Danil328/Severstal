@@ -23,8 +23,12 @@ class EncoderDecoder(Model):
     def forward(self, x):
         """Sequentially pass `x` trough model`s `encoder` and `decoder` (return logits!)"""
         x = self.encoder(x)
+        if self.cls is not None:
+            x_cls = self.cls(x[-1])
+        else:
+            x_cls = None
         x = self.decoder(x)
-        return x
+        return x, x_cls
 
     def predict(self, x):
         """Inference method. Switch model to `eval` mode, call `.forward(x)`

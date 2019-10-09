@@ -28,18 +28,23 @@ def main():
     config_main = read_config(args.config_file, "MAIN")
     config = read_config(args.config_file, "TEST")
     val_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST, phase='val')
+    if len(config['cls_predict']) > 0:
+        val_dataset.start_value = 0.0
+        val_dataset.delta = 0.0
+        val_dataset.update_empty_mask_ratio(0)
+    val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16, drop_last=False)
+
     test_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST, phase='test')
     test_dataset_flip = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST_FLIPPED, phase='test')
 
-    val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16, drop_last=False)
     test_loader = DataLoader(test_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16, drop_last=False)
     test_loader_flip = DataLoader(test_dataset_flip, batch_size=config['batch_size'], shuffle=False, num_workers=16, drop_last=False)
 
     device = torch.device(f"cuda" if torch.cuda.is_available() else 'cpu')
 
     best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device)
-    # best_threshold = 0.5
-    # best_min_size_threshold = 2000
+    # best_threshold = 0.75
+    # best_min_size_threshold = 600
 
     predict(config, test_loader, best_threshold, best_min_size_threshold, device, test_loader_flip)
 
@@ -48,12 +53,7 @@ def search_threshold(config, val_loader, device):
     models = []
 
     for weight in glob.glob(os.path.join(config['weights'], config['name'], 'cosine/') + "*.pth"):
-        if 'smp' in config['model']:
-            model = smp.Unet(encoder_name=config['model_params']['backbone_arch'],
-                             encoder_weights=None,
-                             classes=config['model_params']['seg_classes'])
-        else:
-            model = ResnetSuperVision(**config['model_params'])
+        model = pydoc.locate(config['model'])(**config['model_params'])
         model.load_state_dict(torch.load(weight))
         model = model.to(device)
         model.eval()
@@ -121,12 +121,7 @@ def search_threshold(config, val_loader, device):
 def predict(config, test_loader, best_threshold, min_size, device, test_loader_flip):
     models = []
     for weight in glob.glob(os.path.join(config['weights'], config['name'], 'cosine/') + "*.pth"):
-        if 'smp' in config['model']:
-            model = smp.Unet(encoder_name=config['model_params']['backbone_arch'],
-                             encoder_weights=None,
-                             classes=config['model_params']['seg_classes'])
-        else:
-            model = ResnetSuperVision(**config['model_params'])
+        model = pydoc.locate(config['model'])(**config['model_params'])
         model.load_state_dict(torch.load(weight))
         model = model.to(device)
         model.eval()

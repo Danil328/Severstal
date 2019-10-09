@@ -3,14 +3,15 @@ MAIN:
   path_to_data: "/home/danil.akhmetov/Projects/Severstal/data/"
 TRAIN:
   n_epochs: &n_epochs 110
-  batch_size: 64
+  batch_size: 32
 
-  model: &model smp_efb3
+  model: &model models.segmentation_models_pytorch_danil.Unet
   model_params: &model_params
     classes: 4
     encoder_weights: imagenet
     encoder_name: efficientnet-b3
     attention_type: scse
+    cls_out: 1
 
   train_params:
     name: &name smp_efb3_crop_v2
@@ -23,18 +24,21 @@ TRAIN:
       weights:
         bce: 3
         dice: 1
+      sv_weight: 0.1
     metrics:
       metrics.HardDiceCoef:
         threshold: 0.5
       metrics.SoftDiceCoef:
         class_id: -1
+      metrics.AccuracyScore:
+        threshold: 0.5
 
   stages:
     cosine:
       optimizer: optimizer.RAdam
       optimizer_params:
         lr: 0.0001
-        weight_decay: 0.00002
+        weight_decay: 0.00001
       scheduler: CosineAnnealingLR
       scheduler_params:
         T_max: 10
@@ -62,9 +66,8 @@ TEST:
   model: *model
   model_params: *model_params
   weights: /home/danil.akhmetov/Projects/Severstal/output/weights
-  cls_predict: ''
+  cls_predict: /home/danil.akhmetov/Projects/Severstal/output/classification_lb.csv
   TTA: 'false'
-  #/home/danil.akhmetov/Projects/Severstal/output/classification_lb.csv
 
 
 

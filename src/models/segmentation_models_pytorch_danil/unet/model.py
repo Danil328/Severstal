@@ -38,20 +38,22 @@ class Unet(EncoderDecoder):
             activation='sigmoid',
             center=False,  # usefull for VGG models
             attention_type=None,
-            cls_out=False
+            cls_out=4
     ):
         encoder = get_encoder(
             encoder_name,
             encoder_weights=encoder_weights
         )
 
-        if cls_out:
+        if cls_out > 0:
             cls = nn.Sequential(
+                nn.AdaptiveMaxPool2d(1),
+                nn.Flatten(),
                 nn.Dropout(0.2),
-                nn.Linear(512, 128),
-                nn.BatchNorm1d(128),
+                nn.Linear(40, 24),
+                nn.BatchNorm1d(24),
                 nn.ELU(),
-                nn.Linear(128, classes),
+                nn.Linear(24, cls_out),
                 nn.Sigmoid() if activation=='sigmoid' else nn.Softmax()
             )
         else:

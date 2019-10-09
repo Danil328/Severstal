@@ -2,7 +2,6 @@ import pydoc
 
 import torch
 from torch.nn import DataParallel
-import models.segmentation_models_pytorch_danil as smp
 
 
 class Metrics:
@@ -20,10 +19,7 @@ class Factory:
 
     def make_model(self, device) -> torch.nn.Module:
         model_name = self.params['model']
-        if 'smp' in model_name:
-            model = smp.Unet(**self.params['model_params'])
-        else:
-            model = pydoc.locate(model_name)(**self.params['model_params'])
+        model = pydoc.locate(model_name)(**self.params['model_params'])
         if isinstance(self.params.get('weights', None), str):
             model.load_state_dict(torch.load(self.params['weights']))
         return DataParallel(model).to(device)
