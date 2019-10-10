@@ -12,9 +12,7 @@ from tqdm import tqdm
 
 from dataset import SteelDataset, AUGMENTATIONS_TEST, AUGMENTATIONS_TEST_FLIPPED
 from metrics import dice_coef_numpy
-from models.unet import ResnetSuperVision
 from utils import read_config, mask2rle
-import models.segmentation_models_pytorch_danil as smp
 
 
 def parse_args():
@@ -28,10 +26,10 @@ def main():
     config_main = read_config(args.config_file, "MAIN")
     config = read_config(args.config_file, "TEST")
     val_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST, phase='val')
-    if len(config['cls_predict']) > 0:
-        val_dataset.start_value = 0.0
-        val_dataset.delta = 0.0
-        val_dataset.update_empty_mask_ratio(0)
+    # if len(config['cls_predict']) > 0:
+    #     val_dataset.start_value = 0.0
+    #     val_dataset.delta = 0.0
+    #     val_dataset.update_empty_mask_ratio(0)
     val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16, drop_last=False)
 
     test_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST, phase='test')
@@ -42,9 +40,9 @@ def main():
 
     device = torch.device(f"cuda" if torch.cuda.is_available() else 'cpu')
 
-    best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device)
-    # best_threshold = 0.75
-    # best_min_size_threshold = 600
+    # best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device)
+    best_threshold = 0.85
+    best_min_size_threshold = 1000
 
     predict(config, test_loader, best_threshold, best_min_size_threshold, device, test_loader_flip)
 
@@ -69,7 +67,7 @@ def search_threshold(config, val_loader, device):
                 for model in models:
                     tmp_batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
                     for step in np.arange(0, 1600, 384)[:-1]:
-                        tmp_pred = torch.sigmoid(model(images[:,:,:,step:step+448])).cpu().numpy()
+                        tmp_pred = torch.sigmoid(model(images[:,:,:,step:step+448])[0]).cpu().numpy()
                         tmp_batch_preds[:,:,:,step:step+448] += tmp_pred
                     tmp_batch_preds[:,:,:,384:384+64] /= 2
                     tmp_batch_preds[:,:,:,2*384:2*384+64] /= 2
@@ -100,7 +98,7 @@ def search_threshold(config, val_loader, device):
 
     print("Search min_size threshold ...")
     predicts = (predicts > best_threshold).astype(np.uint8)
-    thresholds = np.arange(100, 4000, 500)
+    thresholds = np.arange(100, 1100, 100)
     scores = []
     for threshold in tqdm(thresholds):
         tmp = predicts.copy()
@@ -128,7 +126,11 @@ def predict(config, test_loader, best_threshold, min_size, device, test_loader_f
         models.append(model)
 
     if len(config['cls_predict']) > 0:
+        print("Use classification model results")
         cls_df = pd.read_csv(config['cls_predict'])
+        if config['threshold_cls'] > 0:
+            print("Apply cls threshold ...")
+            cls_df['is_mask_empty'] = cls_df['mask_empty_prob'].map(lambda x: 1 if x > config['threshold_cls'] else 0)
         cls_df.index = cls_df.ImageId_ClassId.values
         cls_df.drop_duplicates(inplace=True)
     else:
@@ -192,7 +194,7 @@ def predict(config, test_loader, best_threshold, min_size, device, test_loader_f
                     for model in models:
                         tmp_batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
                         for step in np.arange(0, 1600, 384)[:-1]:
-                            tmp_pred = torch.sigmoid(model(images[:, :, :, step:step + 448])).cpu().numpy()
+                            tmp_pred = torch.sigmoid(model(images[:, :, :, step:step + 448])[0]).cpu().numpy()
                             tmp_batch_preds[:, :, :, step:step + 448] += tmp_pred
                         tmp_batch_preds[:, :, :, 384:384 + 64] /= 2
                         tmp_batch_preds[:, :, :, 2 * 384:2 * 384 + 64] /= 2
