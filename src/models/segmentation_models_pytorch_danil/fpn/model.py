@@ -1,7 +1,7 @@
 from .decoder import FPNDecoder
 from ..base import EncoderDecoder
 from ..encoders import get_encoder
-
+from torch import nn
 
 class FPN(EncoderDecoder):
     """FPN_ is a fully convolution neural network for image semantic segmentation
@@ -36,11 +36,26 @@ class FPN(EncoderDecoder):
             dropout=0.2,
             activation='sigmoid',
             final_upsampling=4,
+            cls_out=0
     ):
         encoder = get_encoder(
             encoder_name,
             encoder_weights=encoder_weights
         )
+
+        if cls_out > 0:
+            cls = nn.Sequential(
+                nn.AdaptiveAvgPool2d(1),
+                nn.Flatten(),
+                nn.Dropout(0.1),
+                nn.Linear(56, 24),
+                nn.BatchNorm1d(24),
+                nn.ELU(),
+                nn.Linear(24, cls_out),
+                nn.Sigmoid() if activation=='sigmoid' else nn.Softmax()
+            )
+        else:
+            cls = None
 
         decoder = FPNDecoder(
             encoder_channels=encoder.out_shapes,
@@ -51,6 +66,6 @@ class FPN(EncoderDecoder):
             final_upsampling=final_upsampling,
         )
 
-        super().__init__(encoder, decoder, activation)
+        super().__init__(encoder, decoder, activation, cls)
 
         self.name = 'fpn-{}'.format(encoder_name)

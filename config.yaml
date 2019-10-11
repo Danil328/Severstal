@@ -2,19 +2,19 @@ MAIN:
   path_to_project: "/home/danil.akhmetov/Projects/Severstal/"
   path_to_data: "/home/danil.akhmetov/Projects/Severstal/data/"
 TRAIN:
-  n_epochs: &n_epochs 120
+  n_epochs: &n_epochs 150
   batch_size: 24
 
-  model: &model models.segmentation_models_pytorch_danil.Unet
+  model: &model models.segmentation_models_pytorch_danil.FPN
   model_params: &model_params
     classes: 4
     encoder_weights: imagenet
-    encoder_name: efficientnet-b5
-    attention_type: scse
+    encoder_name: efficientnet-b6
+    #attention_type: scse
     cls_out: 1
 
   train_params:
-    name: &name smp_efb5_crop_bce_v1
+    name: &name smp_fpn_efb6_crop_bce_v1
     type: crop
     model: *model
     model_params: *model_params
@@ -22,9 +22,9 @@ TRAIN:
     n_epochs_freeze: 0
     loss_params:
       weights:
-        focal: 3
+        bce: 3
         dice: 1
-      sv_weight: 0.1
+      sv_weight: 0.01
     metrics:
       metrics.HardDiceCoef:
         threshold: 0.5

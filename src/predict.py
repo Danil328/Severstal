@@ -13,6 +13,7 @@ from tqdm import tqdm
 from dataset import SteelDataset, AUGMENTATIONS_TEST, AUGMENTATIONS_TEST_FLIPPED
 from metrics import dice_coef_numpy
 from utils import read_config, mask2rle
+import ttach as tta
 
 
 def parse_args():
@@ -33,18 +34,16 @@ def main():
     val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16, drop_last=False)
 
     test_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST, phase='test')
-    test_dataset_flip = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST_FLIPPED, phase='test')
 
     test_loader = DataLoader(test_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16, drop_last=False)
-    test_loader_flip = DataLoader(test_dataset_flip, batch_size=config['batch_size'], shuffle=False, num_workers=16, drop_last=False)
 
     device = torch.device(f"cuda" if torch.cuda.is_available() else 'cpu')
 
-    # best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device)
-    best_threshold = 0.85
+    best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device)
+    # best_threshold = 0.75
     best_min_size_threshold = 1000
 
-    predict(config, test_loader, best_threshold, best_min_size_threshold, device, test_loader_flip)
+    predict(config, test_loader, best_threshold, best_min_size_threshold, device)
 
 
 def search_threshold(config, val_loader, device):
@@ -116,7 +115,7 @@ def search_threshold(config, val_loader, device):
     return best_threshold, best_min_size_threshold
 
 
-def predict(config, test_loader, best_threshold, min_size, device, test_loader_flip):
+def predict(config, test_loader, best_threshold, min_size, device):
     models = []
     for weight in glob.glob(os.path.join(config['weights'], config['name'], 'cosine/') + "*.pth"):
         model = pydoc.locate(config['model'])(**config['model_params'])
@@ -138,85 +137,49 @@ def predict(config, test_loader, best_threshold, min_size, device, test_loader_f
 
     predictions = []
     image_names = []
-    if config['TTA'] == 'true':
-        with torch.no_grad():
-            for i, (batch, batch_flip) in enumerate(tqdm(zip(test_loader, test_loader_flip))):
-                assert batch["filename"] == batch_flip["filename"], 'Fuck you!'
-                fnames = batch["filename"]
-                images = batch["image"].to(device)
-                images_flip = batch_flip["image"].to(device)
-                batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
-                batch_preds_flip = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
-                if config['type'] == 'crop':
-                    for model in models:
-                        tmp_batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
-                        tmp_batch_preds_flip = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
-                        for step in np.arange(0, 1600, 384)[:-1]:
-                            tmp_pred = torch.sigmoid(model(images[:, :, :, step:step + 448])).cpu().numpy()
-                            tmp_pred_flip = torch.sigmoid(model(images_flip[:, :, :, step:step + 448])).cpu().numpy()
-                            tmp_batch_preds[:, :, :, step:step + 448] += tmp_pred
-                            tmp_batch_preds_flip[:, :, :, step:step + 448] += tmp_pred_flip
-                        tmp_batch_preds[:, :, :, 384:384 + 64] /= 2
-                        tmp_batch_preds[:, :, :, 2 * 384:2 * 384 + 64] /= 2
-                        tmp_batch_preds[:, :, :, 3 * 384:3 * 384 + 64] /= 2
-                        tmp_batch_preds_flip[:, :, :, 384:384 + 64] /= 2
-                        tmp_batch_preds_flip[:, :, :, 2 * 384:2 * 384 + 64] /= 2
-                        tmp_batch_preds_flip[:, :, :, 3 * 384:3 * 384 + 64] /= 2
-                        batch_preds += tmp_batch_preds
-                        batch_preds_flip += tmp_batch_preds_flip
-                else:
-                    for model in models:
-                        batch_preds += torch.sigmoid(model(images)[0]).cpu().numpy()
-                        batch_preds_flip += torch.sigmoid(model(images_flip)[0]).cpu().numpy()
-                batch_preds = batch_preds / len(models)
-                batch_preds_flip = batch_preds_flip / len(models)
-                for fname, preds, preds_flip in zip(fnames, batch_preds, batch_preds_flip):
-                    preds = (preds + np.ascontiguousarray(preds_flip[:, ::-1, ...])) / 2
-                    for cls, pred in enumerate(preds):
-                        if cls_df is not None:
-                            if cls_df.loc[fname]['is_mask_empty'] == 1:
-                                pred = np.zeros((256, 1600))
-                            else:
-                                pred, num = post_process(pred, best_threshold, min_size)
+    transforms = tta.Compose(
+        [
+            tta.HorizontalFlip(),
+            # tta.Scale(scales=[1, 2, 4]),
+            # tta.Multiply(factors=[0.9, 1, 1.1]),
+        ]
+    )
+    with torch.no_grad():
+        for i, batch in enumerate(tqdm(test_loader)):
+            fnames = batch["filename"]
+            images = batch["image"].to(device)
+            batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
+            if config['type'] == 'crop':
+                for model in models:
+                    if config['TTA'] == 'true':
+                        model = tta.SegmentationTTAWrapper(model, transforms)
+                    tmp_batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
+                    for step in np.arange(0, 1600, 384)[:-1]:
+                        tmp_pred = torch.sigmoid(model(images[:, :, :, step:step + 448])[0]).cpu().numpy()
+                        tmp_batch_preds[:, :, :, step:step + 448] += tmp_pred
+                    tmp_batch_preds[:, :, :, 384:384 + 64] /= 2
+                    tmp_batch_preds[:, :, :, 2 * 384:2 * 384 + 64] /= 2
+                    tmp_batch_preds[:, :, :, 3 * 384:3 * 384 + 64] /= 2
+                    batch_preds += tmp_batch_preds
+            else:
+                for model in models:
+                    if config['TTA'] == 'true':
+                        model = tta.SegmentationTTAWrapper(model, transforms)
+                    batch_preds += torch.sigmoid(model(images)[0]).cpu().numpy()
+            batch_preds = batch_preds / len(models)
+            for fname, preds in zip(fnames, batch_preds):
+                for cls, pred in enumerate(preds):
+                    if cls_df is not None:
+                        if cls_df.loc[fname]['is_mask_empty'] == 1:
+                            pred = np.zeros((256, 1600))
                         else:
                             pred, num = post_process(pred, best_threshold, min_size)
-                        rle = mask2rle(pred)
-                        name = fname + f"_{cls + 1}"
-                        image_names.append(name)
-                        predictions.append(rle)
-    else:
-        with torch.no_grad():
-            for i, batch in enumerate(tqdm(test_loader)):
-                fnames = batch["filename"]
-                images = batch["image"].to(device)
-                batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
-                if config['type'] == 'crop':
-                    for model in models:
-                        tmp_batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
-                        for step in np.arange(0, 1600, 384)[:-1]:
-                            tmp_pred = torch.sigmoid(model(images[:, :, :, step:step + 448])[0]).cpu().numpy()
-                            tmp_batch_preds[:, :, :, step:step + 448] += tmp_pred
-                        tmp_batch_preds[:, :, :, 384:384 + 64] /= 2
-                        tmp_batch_preds[:, :, :, 2 * 384:2 * 384 + 64] /= 2
-                        tmp_batch_preds[:, :, :, 3 * 384:3 * 384 + 64] /= 2
-                        batch_preds += tmp_batch_preds
-                else:
-                    for model in models:
-                        batch_preds += torch.sigmoid(model(images)[0]).cpu().numpy()
-                batch_preds = batch_preds / len(models)
-                for fname, preds in zip(fnames, batch_preds):
-                    for cls, pred in enumerate(preds):
-                        if cls_df is not None:
-                            if cls_df.loc[fname]['is_mask_empty'] == 1:
-                                pred = np.zeros((256, 1600))
-                            else:
-                                pred, num = post_process(pred, best_threshold, min_size)
-                        else:
-                            pred, num = post_process(pred, best_threshold, min_size)
-                        rle = mask2rle(pred)
-                        name = fname + f"_{cls + 1}"
-                        image_names.append(name)
-                        predictions.append(rle)
+                    else:
+                        pred, num = post_process(pred, best_threshold, min_size)
+                    rle = mask2rle(pred)
+                    name = fname + f"_{cls + 1}"
+                    image_names.append(name)
+                    predictions.append(rle)
 
     df = pd.DataFrame()
     df["ImageId_ClassId"] = image_names
