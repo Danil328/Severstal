@@ -48,7 +48,7 @@ class FPN(EncoderDecoder):
                 nn.AdaptiveAvgPool2d(1),
                 nn.Flatten(),
                 nn.Dropout(0.1),
-                nn.Linear(56, 24),
+                nn.Linear(48, 24),
                 nn.BatchNorm1d(24),
                 nn.ELU(),
                 nn.Linear(24, cls_out),

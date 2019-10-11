@@ -10,11 +10,13 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from dataset import SteelDataset, AUGMENTATIONS_TEST, AUGMENTATIONS_TEST_FLIPPED
+from dataset import SteelDataset, AUGMENTATIONS_TEST
 from metrics import dice_coef_numpy
 from utils import read_config, mask2rle
 import ttach as tta
 
+
+# TODO TTA CLS
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -39,14 +41,22 @@ def main():
 
     device = torch.device(f"cuda" if torch.cuda.is_available() else 'cpu')
 
-    best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device)
-    # best_threshold = 0.75
+    transforms = tta.Compose(
+        [
+            tta.HorizontalFlip(),
+            # tta.Scale(scales=[1, 2, 4]),
+            # tta.Multiply(factors=[0.9, 1, 1.1]),
+        ]
+    )
+
+    # best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device, transforms)
+    best_threshold = 0.85
     best_min_size_threshold = 1000
 
-    predict(config, test_loader, best_threshold, best_min_size_threshold, device)
+    predict(config, test_loader, best_threshold, best_min_size_threshold, device, transforms)
 
 
-def search_threshold(config, val_loader, device):
+def search_threshold(config, val_loader, device, transforms):
     models = []
 
     for weight in glob.glob(os.path.join(config['weights'], config['name'], 'cosine/') + "*.pth"):
@@ -64,17 +74,21 @@ def search_threshold(config, val_loader, device):
             batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
             if config['type'] == 'crop':
                 for model in models:
+                    if config['TTA'] == 'true':
+                        model = tta.SegmentationTTAWrapper(model, transforms)
                     tmp_batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
                     for step in np.arange(0, 1600, 384)[:-1]:
-                        tmp_pred = torch.sigmoid(model(images[:,:,:,step:step+448])[0]).cpu().numpy()
+                        tmp_pred = torch.sigmoid(model(images[:,:,:,step:step+448])).cpu().numpy()
                         tmp_batch_preds[:,:,:,step:step+448] += tmp_pred
                     tmp_batch_preds[:,:,:,384:384+64] /= 2
                     tmp_batch_preds[:,:,:,2*384:2*384+64] /= 2
                     tmp_batch_preds[:,:,:,3*384:3*384+64] /= 2
-                    batch_preds += tmp_batch_preds
+                    batch_preds += tmp_batch_preds ** 0.5
             else:
                 for model in models:
-                    batch_preds += torch.sigmoid(model(images)).cpu().numpy()
+                    if config['TTA'] == 'true':
+                        model = tta.SegmentationTTAWrapper(model, transforms)
+                    batch_preds += torch.sigmoid(model(images)).cpu().numpy() ** 0.5
             batch_preds = batch_preds / len(models)
 
             masks.append(mask)
@@ -115,7 +129,7 @@ def search_threshold(config, val_loader, device):
     return best_threshold, best_min_size_threshold
 
 
-def predict(config, test_loader, best_threshold, min_size, device):
+def predict(config, test_loader, best_threshold, min_size, device, transforms):
     models = []
     for weight in glob.glob(os.path.join(config['weights'], config['name'], 'cosine/') + "*.pth"):
         model = pydoc.locate(config['model'])(**config['model_params'])
@@ -129,7 +143,8 @@ def predict(config, test_loader, best_threshold, min_size, device):
         cls_df = pd.read_csv(config['cls_predict'])
         if config['threshold_cls'] > 0:
             print("Apply cls threshold ...")
-            cls_df['is_mask_empty'] = cls_df['mask_empty_prob'].map(lambda x: 1 if x > config['threshold_cls'] else 0)
+            #cls_df['is_mask_empty'] = cls_df['mask_empty_prob'].map(lambda x: 1 if x > config['threshold_cls'] else 0)
+            cls_df['is_mask_empty'] = cls_df['EncodedPixels'].map(lambda x: 0 if len(x) > 0 else 1)
         cls_df.index = cls_df.ImageId_ClassId.values
         cls_df.drop_duplicates(inplace=True)
     else:
@@ -137,13 +152,7 @@ def predict(config, test_loader, best_threshold, min_size, device):
 
     predictions = []
     image_names = []
-    transforms = tta.Compose(
-        [
-            tta.HorizontalFlip(),
-            # tta.Scale(scales=[1, 2, 4]),
-            # tta.Multiply(factors=[0.9, 1, 1.1]),
-        ]
-    )
+
     with torch.no_grad():
         for i, batch in enumerate(tqdm(test_loader)):
             fnames = batch["filename"]
@@ -155,22 +164,22 @@ def predict(config, test_loader, best_threshold, min_size, device):
                         model = tta.SegmentationTTAWrapper(model, transforms)
                     tmp_batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
                     for step in np.arange(0, 1600, 384)[:-1]:
-                        tmp_pred = torch.sigmoid(model(images[:, :, :, step:step + 448])[0]).cpu().numpy()
+                        tmp_pred = torch.sigmoid(model(images[:, :, :, step:step + 448])).cpu().numpy()
                         tmp_batch_preds[:, :, :, step:step + 448] += tmp_pred
                     tmp_batch_preds[:, :, :, 384:384 + 64] /= 2
                     tmp_batch_preds[:, :, :, 2 * 384:2 * 384 + 64] /= 2
                     tmp_batch_preds[:, :, :, 3 * 384:3 * 384 + 64] /= 2
-                    batch_preds += tmp_batch_preds
+                    batch_preds += tmp_batch_preds ** 0.5
             else:
                 for model in models:
                     if config['TTA'] == 'true':
                         model = tta.SegmentationTTAWrapper(model, transforms)
-                    batch_preds += torch.sigmoid(model(images)[0]).cpu().numpy()
+                    batch_preds += torch.sigmoid(model(images)).cpu().numpy() ** 0.5
             batch_preds = batch_preds / len(models)
             for fname, preds in zip(fnames, batch_preds):
                 for cls, pred in enumerate(preds):
                     if cls_df is not None:
-                        if cls_df.loc[fname]['is_mask_empty'] == 1:
+                        if cls_df.loc[fname + f"_{cls + 1}"]['is_mask_empty'] == 1:
                             pred = np.zeros((256, 1600))
                         else:
                             pred, num = post_process(pred, best_threshold, min_size)
