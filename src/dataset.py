@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from albumentations import (
     HorizontalFlip,
+    VerticalFlip,
     Compose,
     ElasticTransform,
     GridDistortion,
@@ -16,7 +17,7 @@ from albumentations import (
     Normalize,
     ShiftScaleRotate,
     CropNonEmptyMaskIfExists)
-from albumentations.pytorch import ToTensor
+from albumentations.pytorch import ToTensor, ToTensorV2
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset, Sampler
 from tqdm import tqdm
@@ -32,7 +33,7 @@ AUGMENTATIONS_TRAIN = Compose([
     # OneOf([
     #     ElasticTransform(alpha=120, alpha_affine=120 * 0.03, approximate=False, border_mode=0, interpolation=1, sigma=6, p=0.5),
     #     GridDistortion(border_mode=0, distort_limit=(-0.3, 0.3), interpolation=1, num_steps=5, p=0.5),
-    #     OpticalDistortion(border_mode=0, distort_limit=(-2, 2), interpolation=1, shift_limit=(-0.5, 0.5), p=0.5),
+    #     OpticalDistortion(border_mode=0, distort_limit=0.05, interpolation=1, shift_limit=0.05, p=1.0),
     # ], p=0.3),
     Normalize(),
     ToTensor(num_classes=4, sigmoid=True)
@@ -47,7 +48,13 @@ AUGMENTATIONS_TEST = Compose([
 AUGMENTATIONS_TRAIN_CROP = Compose([
     CropNonEmptyMaskIfExists(height=256, width=448, always_apply=True),
     HorizontalFlip(p=0.5),
-    ShiftScaleRotate(shift_limit=(-0.2, 0.2), scale_limit=(-0.2, 0.2), rotate_limit=(-20, 20), border_mode=0, interpolation=1, p=0.25),
+    VerticalFlip(p=0.25),
+    ShiftScaleRotate(shift_limit=(-0.1, 0.1), scale_limit=(-0.1, 0.1), rotate_limit=(-10, 10), border_mode=0, interpolation=1, p=0.25),
+    OneOf([
+        ElasticTransform(p=0.2, alpha=120, sigma=120 * 0.1, alpha_affine=120 * 0.03),
+        GridDistortion(p=0.5),
+        OpticalDistortion(border_mode=0, distort_limit=0.05, interpolation=1, shift_limit=0.05, p=1.0),
+    ], p=0.3),
     OneOf([
         RandomBrightnessContrast(brightness_limit=(-0.2, 0.2), contrast_limit=(-0.2, 0.2)),
     ], p=0.25),

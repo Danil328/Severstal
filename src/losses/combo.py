@@ -71,7 +71,8 @@ class ComboSuperVisionLoss(ComboLoss):
         self.sv_weight = sv_weight
 
     def forward(self, *input):
-        outputs, targets, sv_outputs, sv_targets = input
+        outputs, targets = input
         mask_loss = super().forward(outputs, targets)
-        supervision_loss = F.binary_cross_entropy(sv_outputs, sv_targets)
-        return self.sv_weight * supervision_loss + (1 - self.sv_weight) * mask_loss
+        # supervision_loss = F.binary_cross_entropy(sv_outputs, sv_targets)
+        # return self.sv_weight * supervision_loss + (1 - self.sv_weight) * mask_loss
+        return mask_loss

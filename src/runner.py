@@ -111,8 +111,8 @@ class Runner:
         images = data['image']
         masks = data['mask']
         labels = data['label']
-        predictions, predictions_cls = self.model(images)
-        loss = self.loss(predictions, masks, predictions_cls, labels)
+        predictions = self.model(images)
+        loss = self.loss(predictions, masks)
         report['loss'] = loss.data
 
         if is_train:
@@ -127,7 +127,8 @@ class Runner:
         else:
             for metric, f in self.metrics.functions.items():
                 if metric in ['JaccardScore', 'AccuracyScore']:
-                    report[metric] = f(predictions_cls, labels)
+                    # report[metric] = f(predictions_cls, labels)
+                    pass
                 else:
                     report[metric] = f(predictions, masks)
         return report

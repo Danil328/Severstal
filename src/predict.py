@@ -51,7 +51,7 @@ def main():
 
     # best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device, transforms)
     best_threshold = 0.85
-    best_min_size_threshold = 1000
+    best_min_size_threshold = 500
 
     predict(config, test_loader, best_threshold, best_min_size_threshold, device, transforms)
 
@@ -98,7 +98,7 @@ def search_threshold(config, val_loader, device, transforms):
     masks = np.vstack(masks)
 
     print("Search threshold ...")
-    thresholds = np.arange(0.25, 0.9, 0.05)
+    thresholds = np.arange(0.25, 0.95, 0.05)
     scores = []
     for threshold in tqdm(thresholds):
         score = dice_coef_numpy(preds=(predicts>threshold).astype(int), trues=masks)
@@ -144,7 +144,7 @@ def predict(config, test_loader, best_threshold, min_size, device, transforms):
         if config['threshold_cls'] > 0:
             print("Apply cls threshold ...")
             #cls_df['is_mask_empty'] = cls_df['mask_empty_prob'].map(lambda x: 1 if x > config['threshold_cls'] else 0)
-            cls_df['is_mask_empty'] = cls_df['EncodedPixels'].map(lambda x: 0 if len(x) > 0 else 1)
+            cls_df['is_mask_empty'] = cls_df['EncodedPixels'].map(lambda x: 1 if pd.isna(x) else 0)
         cls_df.index = cls_df.ImageId_ClassId.values
         cls_df.drop_duplicates(inplace=True)
     else:
