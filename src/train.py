@@ -57,9 +57,9 @@ def main():
     aug_train = AUGMENTATIONS_TRAIN_CROP if config['train_params']['type'] == 'crop' else AUGMENTATIONS_TRAIN
     aug_test = AUGMENTATIONS_TEST_CROP if config['train_params']['type'] == 'crop' else AUGMENTATIONS_TEST
     train_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=aug_train, phase='train',
-                                 empty_mask_params=config['data_params']['empty_mask_increase'])
+                                 fold=config_main['fold'], empty_mask_params=config['data_params']['empty_mask_increase'])
     # sampler = FourBalanceClassSampler(labels=train_dataset.labels)
-    val_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=aug_test, phase='val')
+    val_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=aug_test, phase='val', fold=config_main['fold'])
 
     train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=16, drop_last=True)
     val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16)

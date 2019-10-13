@@ -28,7 +28,7 @@ def main():
     args = parse_args()
     config_main = read_config(args.config_file, "MAIN")
     config = read_config(args.config_file, "TEST")
-    val_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST, phase='val')
+    val_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST, phase='val', fold=config_main['fold'])
     # if len(config['cls_predict']) > 0:
     #     val_dataset.start_value = 0.0
     #     val_dataset.delta = 0.0

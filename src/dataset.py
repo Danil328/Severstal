@@ -4,6 +4,7 @@ import random
 
 import cv2
 import numpy as np
+import pandas as pd
 import torch
 from albumentations import (
     HorizontalFlip,
@@ -84,12 +85,13 @@ class SteelDataset(Dataset):
     34      284
     4       516
     """
-    def __init__(self, data_folder, transforms, phase, empty_mask_params: dict = None):
+    def __init__(self, data_folder, transforms, phase, fold=-1, empty_mask_params: dict = None):
         assert phase in ['train', 'val', 'test'], "Fuck you!"
 
         self.root = data_folder
         self.transforms = transforms
         self.phase = phase
+        self.fold = fold
         if phase != 'test':
             self.images = np.asarray(self.split_train_val(glob.glob(os.path.join(self.root, "train_images", "*.jpg"))))#[:200]
 
@@ -129,11 +131,15 @@ class SteelDataset(Dataset):
         return len(self.images)
 
     def split_train_val(self, images: list):
-        train, val = train_test_split(images, test_size=0.1, random_state=17)
-        if self.phase == 'train':
-            return train
-        elif self.phase == 'val':
-            return val
+        if self.fold < 0:
+            train, val = train_test_split(images, test_size=0.1, random_state=17)
+            if self.phase == 'train':
+                return train
+            elif self.phase == 'val':
+                return val
+        else:
+            cv_df = pd.read_csv(os.path.join(self.root, 'cross_val_DF.csv'))
+            return cv_df[cv_df[f'fold_{self.fold}'] == self.phase]['images'].values
 
     def update_empty_mask_ratio(self, epoch: int):
         self.positive_ratio = self.start_value + self.delta * epoch

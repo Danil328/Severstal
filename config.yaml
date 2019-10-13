@@ -1,6 +1,7 @@
 MAIN:
   path_to_project: "/home/danil.akhmetov/Projects/Severstal/"
   path_to_data: "/home/danil.akhmetov/Projects/Severstal/data/"
+  fold: -1
 TRAIN:
   n_epochs: &n_epochs 150
   batch_size: 48
