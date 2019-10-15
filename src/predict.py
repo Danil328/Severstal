@@ -16,8 +16,6 @@ from utils import read_config, mask2rle
 import ttach as tta
 
 
-# TODO TTA CLS
-
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config-file", default="../config.yaml", metavar="FILE", help="path to config file", type=str)
@@ -44,12 +42,13 @@ def main():
     transforms = tta.Compose(
         [
             tta.HorizontalFlip(),
+            # tta.VerticalFlip()
             # tta.Scale(scales=[1, 2, 4]),
             # tta.Multiply(factors=[0.9, 1, 1.1]),
         ]
     )
 
-    # best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device, transforms)
+    #best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device, transforms)
     best_threshold = 0.85
     best_min_size_threshold = 500
 
@@ -143,8 +142,8 @@ def predict(config, test_loader, best_threshold, min_size, device, transforms):
         cls_df = pd.read_csv(config['cls_predict'])
         if config['threshold_cls'] > 0:
             print("Apply cls threshold ...")
-            #cls_df['is_mask_empty'] = cls_df['mask_empty_prob'].map(lambda x: 1 if x > config['threshold_cls'] else 0)
-            cls_df['is_mask_empty'] = cls_df['EncodedPixels'].map(lambda x: 1 if pd.isna(x) else 0)
+            cls_df['is_mask_empty'] = cls_df['mask_empty_prob'].map(lambda x: 1 if x > config['threshold_cls'] else 0)
+            #cls_df['is_mask_empty'] = cls_df['EncodedPixels'].map(lambda x: 1 if pd.isna(x) else 0)
         cls_df.index = cls_df.ImageId_ClassId.values
         cls_df.drop_duplicates(inplace=True)
     else:
@@ -179,7 +178,8 @@ def predict(config, test_loader, best_threshold, min_size, device, transforms):
             for fname, preds in zip(fnames, batch_preds):
                 for cls, pred in enumerate(preds):
                     if cls_df is not None:
-                        if cls_df.loc[fname + f"_{cls + 1}"]['is_mask_empty'] == 1:
+                        #if cls_df.loc[fname + f"_{cls + 1}"]['is_mask_empty'] == 1:
+                        if cls_df.loc[fname]['is_mask_empty'] == 1:
                             pred = np.zeros((256, 1600))
                         else:
                             pred, num = post_process(pred, best_threshold, min_size)

@@ -219,11 +219,13 @@ class Logger(Callback):
 
 
 class FreezerCallback(Callback):
-    def __init__(self, n_epochs: int):
-        self.n_epochs = n_epochs
+    def __init__(self, enable=False):
+        self.enable = enable
+        super().__init__()
 
-    def on_train_begin(self):
-        if self.n_epochs > 0:
+    def on_stage_begin(self):
+        if self.runner.current_stage_name == 'freeze':
+            print("Network is freeze")
             if hasattr(self.runner.model, 'module'):
                 for param in self.runner.model.module.encoder.parameters():
                     param.requires_grad = False
@@ -231,10 +233,9 @@ class FreezerCallback(Callback):
                 for param in self.runner.model.encoder.parameters():
                     param.requires_grad = False
 
-
-
-    def on_epoch_end(self, epoch):
-        if 0 < self.n_epochs < epoch:
+    def on_stage_end(self):
+        if self.runner.current_stage_name == 'freeze':
+            print("Network is unfreeze")
             if hasattr(self.runner.model, 'module'):
                 for param in self.runner.model.module.encoder.parameters():
                     param.requires_grad = True

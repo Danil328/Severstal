@@ -53,11 +53,10 @@ class Runner:
         for stage_name, stage in self.stages.items():
             self.current_stage = stage
             self.current_stage_name = stage_name
+            self.callbacks.on_stage_begin()
 
             self.optimizer = self.factory.make_optimizer(self.model, stage)
             self.scheduler = self.factory.make_scheduler(self.optimizer, stage)
-
-            self.callbacks.on_stage_begin()
 
             self._run_one_stage(train_loader, val_loader)
             self.callbacks.on_stage_end()

@@ -23,7 +23,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def create_callbacks(name, dumps, n_epochs_freeze):
+def create_callbacks(name, dumps):
     log_dir = Path(dumps['path']) / dumps['logs'] / name
     save_dir = Path(dumps['path']) / dumps['weights'] / name
     callbacks = Callbacks(
@@ -37,7 +37,7 @@ def create_callbacks(name, dumps, n_epochs_freeze):
                 mode='max'
             ),
             TensorBoard(str(log_dir)),
-            FreezerCallback(n_epochs=n_epochs_freeze)
+            FreezerCallback()
         ]
     )
     return callbacks
@@ -51,7 +51,7 @@ def main():
     pprint(config)
     factory = Factory(config['train_params'])
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    callbacks = create_callbacks(config['train_params']['name'], config['dumps'], config['train_params']['n_epochs_freeze'])
+    callbacks = create_callbacks(config['train_params']['name'], config['dumps'])
     trainer = Runner(stages=config['stages'], factory=factory, callbacks=callbacks, device=device)
 
     aug_train = AUGMENTATIONS_TRAIN_CROP if config['train_params']['type'] == 'crop' else AUGMENTATIONS_TRAIN

@@ -27,9 +27,9 @@ class Factory:
     @staticmethod
     def make_optimizer(model: torch.nn.Module, stage: dict) -> torch.optim.Optimizer:
         if '.' in stage['optimizer']:
-            return pydoc.locate(stage['optimizer'])(params=model.parameters(), **stage['optimizer_params'])
+            return pydoc.locate(stage['optimizer'])(params=filter(lambda p: p.requires_grad, model.parameters()), **stage['optimizer_params'])
         else:
-            return getattr(torch.optim, stage['optimizer'])(params=model.parameters(), **stage['optimizer_params'])
+            return getattr(torch.optim, stage['optimizer'])(params=filter(lambda p: p.requires_grad, model.parameters()), **stage['optimizer_params'])
 
     @staticmethod
     def make_scheduler(optimizer, stage):

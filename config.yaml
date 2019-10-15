@@ -1,26 +1,24 @@
 MAIN:
   path_to_project: "/home/danil.akhmetov/Projects/Severstal/"
   path_to_data: "/home/danil.akhmetov/Projects/Severstal/data/"
-  fold: -1
+  fold: 1
 TRAIN:
-  n_epochs: &n_epochs 150
-  batch_size: 48
+  batch_size: 24
 
   model: &model models.segmentation_models_pytorch_danil.FPN
   model_params: &model_params
     classes: 4
-    encoder_weights: instagram
-    encoder_name: resnext101_32x16d
+    encoder_weights: imagenet
+    encoder_name: efficientnet-b6
     #attention_type: scse
     cls_out: 0
 
   train_params:
-    name: &name smp_fpn_resnext101_32x16d_crop_bce_v1
+    name: &name smp_fpn_efb6_crop_bce_cv1_freeze
     type: crop
     model: *model
     model_params: *model_params
     loss: losses.ComboSuperVisionLoss
-    n_epochs_freeze: 0
     loss_params:
       weights:
         bce: 3
@@ -35,6 +33,16 @@ TRAIN:
         threshold: 0.5
 
   stages:
+    freeze:
+      optimizer: optimizer.RAdam
+      optimizer_params:
+        lr: 0.001
+        weight_decay: 0.00001
+      scheduler: CosineAnnealingLR
+      scheduler_params:
+        T_max: 5
+        eta_min: 0.0001
+      epochs: 10
     cosine:
       optimizer: optimizer.RAdam
       optimizer_params:
@@ -44,7 +52,7 @@ TRAIN:
       scheduler_params:
         T_max: 10
         eta_min: 0.000001
-      epochs: *n_epochs
+      epochs: 130
 
   swa: 0
   data_params:
@@ -67,10 +75,11 @@ TEST:
   model: *model
   model_params: *model_params
   weights: /home/danil.akhmetov/Projects/Severstal/output/weights
-  cls_predict: '../resnet34-cls-tta-0.50.csv'
-  threshold_cls: 0.9
+  cls_predict: '../classification_lb_xception_098.csv'
+  threshold_cls: 0.4
   TTA: 'true'
 
 #'../resnet34-cls-tta-0.50.csv'
+#'../classification_lb_xception_098.csv'
 
 
