@@ -23,8 +23,8 @@ class EncoderDecoder(Model):
     def forward(self, x):
         """Sequentially pass `x` trough model`s `encoder` and `decoder` (return logits!)"""
         x = self.encoder(x)
-        if self.cls is not None:
-            x_cls = self.cls(x[-1])
+        # if self.cls is not None:
+        #     x_cls = self.cls(x[-1])
         x = self.decoder(x)
         return x
 

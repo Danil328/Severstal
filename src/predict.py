@@ -48,8 +48,8 @@ def main():
         ]
     )
 
-    #best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device, transforms)
-    best_threshold = 0.85
+    best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device, transforms)
+    # best_threshold = 0.85
     best_min_size_threshold = 500
 
     predict(config, test_loader, best_threshold, best_min_size_threshold, device, transforms)

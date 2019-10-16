@@ -13,7 +13,7 @@ from sklearn.model_selection import StratifiedKFold
 def parse_args():
     parser = argparse.ArgumentParser(description="Create mask for training")
     parser.add_argument("--config-file", default="../config.yaml", metavar="FILE", help="path to config file", type=str)
-    parser.add_argument("--n-folds", default=5, type=int)
+    parser.add_argument("--n-folds", default=10, type=int)
     return parser.parse_args()
 
 

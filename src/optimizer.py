@@ -76,3 +76,29 @@ class RAdam(Optimizer):
                 p.data.copy_(p_data_fp32)
 
         return loss
+
+
+from torch.optim.lr_scheduler import _LRScheduler
+class GradualWarmupScheduler(_LRScheduler):
+    """ Gradually warm-up(increasing) learning rate in optimizer.
+    Proposed in 'Accurate, Large Minibatch SGD: Training ImageNet in 1 Hour'.
+    Args:
+        optimizer (Optimizer): Wrapped optimizer.
+        multiplier: target learning rate = base lr * multiplier
+        total_epoch: target learning rate is reached at total_epoch, gradually
+    """
+
+    def __init__(self, optimizer, multiplier, total_epoch):
+        self.multiplier = multiplier
+        self.total_epoch = total_epoch
+        if self.multiplier < 1.:
+            raise ValueError('multiplier should be greater thant or equal to 1.')
+        self.finished = False
+        super().__init__(optimizer)
+
+    def get_lr(self):
+        return [base_lr * ((self.multiplier - 1.) * self.last_epoch / self.total_epoch + 1.) for base_lr in self.base_lrs]
+
+
+    def step(self, epoch=None, metrics=None):
+        return super(GradualWarmupScheduler, self).step(epoch)

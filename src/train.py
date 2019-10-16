@@ -1,6 +1,3 @@
-import time
-# time.sleep(60*60*2)
-
 import argparse
 import os
 import shutil
@@ -15,6 +12,9 @@ from callbacks import Callbacks, CheckpointSaver, Logger, TensorBoard, FreezerCa
 from factory import Factory
 from runner import Runner
 from utils import read_config, set_global_seeds
+
+# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 def parse_args():

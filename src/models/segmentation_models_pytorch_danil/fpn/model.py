@@ -36,8 +36,15 @@ class FPN(EncoderDecoder):
             dropout=0.2,
             activation='sigmoid',
             final_upsampling=4,
-            cls_out=0
+            cls_out=0,
+            hypercolumn=False,
+            supervision=False,
+            attentionGate=False
     ):
+        hypercolumn = True if hypercolumn=='true' else False
+        supervision = True if supervision=='true' else False
+        attentionGate = True if attentionGate=='true' else False
+
         encoder = get_encoder(
             encoder_name,
             encoder_weights=encoder_weights
@@ -64,6 +71,9 @@ class FPN(EncoderDecoder):
             final_channels=classes,
             dropout=dropout,
             final_upsampling=final_upsampling,
+            hypercolumn=hypercolumn,
+            supervision=supervision,
+            attentionGate=attentionGate
         )
 
         super().__init__(encoder, decoder, activation, cls)

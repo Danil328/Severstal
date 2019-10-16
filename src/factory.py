@@ -33,7 +33,10 @@ class Factory:
 
     @staticmethod
     def make_scheduler(optimizer, stage):
-        return getattr(torch.optim.lr_scheduler, stage['scheduler'])(optimizer=optimizer, **stage['scheduler_params'])
+        if '.' in stage['scheduler']:
+            return pydoc.locate(stage['scheduler'])(optimizer=optimizer, **stage['scheduler_params'])
+        else:
+            return getattr(torch.optim.lr_scheduler, stage['scheduler'])(optimizer=optimizer, **stage['scheduler_params'])
 
     def make_loss(self, device) -> torch.nn.Module:
         loss = pydoc.locate(self.params['loss'])(**self.params['loss_params'])
