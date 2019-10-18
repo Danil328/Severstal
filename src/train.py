@@ -13,9 +13,6 @@ from factory import Factory
 from runner import Runner
 from utils import read_config, set_global_seeds
 
-# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -56,10 +53,12 @@ def main():
 
     aug_train = AUGMENTATIONS_TRAIN_CROP if config['train_params']['type'] == 'crop' else AUGMENTATIONS_TRAIN
     aug_test = AUGMENTATIONS_TEST_CROP if config['train_params']['type'] == 'crop' else AUGMENTATIONS_TEST
-    train_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=aug_train, phase='train',
+
+    train_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=aug_train, phase='train', activation=config_main['activation'],
                                  fold=config_main['fold'], empty_mask_params=config['data_params']['empty_mask_increase'])
-    # sampler = FourBalanceClassSampler(labels=train_dataset.labels)
-    val_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=aug_test, phase='val', fold=config_main['fold'])
+
+    val_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=aug_test, phase='val',
+                               fold=config_main['fold'], activation=config_main['activation'])
 
     train_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, num_workers=16, drop_last=True)
     val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16)

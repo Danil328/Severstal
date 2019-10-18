@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import numpy as np
 from ..common.blocks import Conv2dReLU, SCSEModule
 from ..base.model import Model
 
@@ -33,6 +33,15 @@ class DecoderBlock(nn.Module):
         return x
 
 
+class UpsampleBlock(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        x = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=True)
+        return x
+
+
 class CenterBlock(DecoderBlock):
 
     def forward(self, x):
@@ -48,10 +57,11 @@ class UnetDecoder(Model):
             final_channels=1,
             use_batchnorm=True,
             center=False,
-            attention_type=None
+            attention_type=None,
+            hypercolumn=False
     ):
         super().__init__()
-
+        self.hypercolumn = hypercolumn
         if center:
             channels = encoder_channels[0]
             self.center = CenterBlock(channels, channels, use_batchnorm=use_batchnorm)
@@ -71,7 +81,7 @@ class UnetDecoder(Model):
                                    use_batchnorm=use_batchnorm, attention_type=attention_type)
         self.layer5 = DecoderBlock(in_channels[4], out_channels[4],
                                    use_batchnorm=use_batchnorm, attention_type=attention_type)
-        self.final_conv = nn.Conv2d(out_channels[4], final_channels, kernel_size=(1, 1))
+        self.final_conv = nn.Conv2d(np.sum(out_channels[2:]) if hypercolumn else out_channels[4], final_channels, kernel_size=(1, 1))
 
         self.initialize()
 
@@ -92,11 +102,16 @@ class UnetDecoder(Model):
         if self.center:
             encoder_head = self.center(encoder_head)
 
-        x = self.layer1([encoder_head, skips[0]])
-        x = self.layer2([x, skips[1]])
-        x = self.layer3([x, skips[2]])
-        x = self.layer4([x, skips[3]])
-        x = self.layer5([x, None])
+        x1 = self.layer1([encoder_head, skips[0]])
+        x2 = self.layer2([x1, skips[1]])
+        x3 = self.layer3([x2, skips[2]])
+        x4 = self.layer4([x3, skips[3]])
+        x = self.layer5([x4, None])
+        if self.hypercolumn:
+            # x1 = F.interpolate(x1, scale_factor=16, mode='bilinear', align_corners=True)
+            x2 = F.interpolate(x2, scale_factor=8, mode='bilinear', align_corners=True)
+            x3 = F.interpolate(x3, scale_factor=4, mode='bilinear', align_corners=True)
+            x4 = F.interpolate(x4, scale_factor=2, mode='bilinear', align_corners=True)
+            x = torch.cat([x,x3,x4], dim=1)
         x = self.final_conv(x)
-
         return x

@@ -89,6 +89,18 @@ class SegmentationBlock(nn.Module):
         return self.block(x)
 
 
+class SupervisionBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, final_channels):
+        super().__init__()
+
+        blocks = [Conv3x3GNReLU(in_channels, out_channels, upsample=True),
+                  nn.Conv2d(out_channels, final_channels, kernel_size=1, padding=0)]
+        self.block = nn.Sequential(*blocks)
+
+    def forward(self, x):
+        return self.block(x)
+
+
 class FPNDecoder(Model):
 
     def __init__(
@@ -108,6 +120,7 @@ class FPNDecoder(Model):
         # (576, 200, 72, 40, 56)
         self.final_upsampling = final_upsampling
         self.hypercolumn = hypercolumn
+        self.supervision = supervision
 
         if attentionGate:
             print("Use attention")
@@ -116,20 +129,16 @@ class FPNDecoder(Model):
             self.p3 = FPNBlockAttG(encoder_channels[2], pyramid_channels, pyramid_channels)
             self.p2 = FPNBlockAttG(encoder_channels[3], pyramid_channels, pyramid_channels)
 
-            self.s5 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=3)
-            self.s4 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=2)
-            self.s3 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=1)
-            self.s2 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=0)
         else:
             self.conv1 = nn.Conv2d(encoder_channels[0], pyramid_channels, kernel_size=(1, 1))
             self.p4 = FPNBlock(pyramid_channels, encoder_channels[1])
             self.p3 = FPNBlock(pyramid_channels, encoder_channels[2])
             self.p2 = FPNBlock(pyramid_channels, encoder_channels[3])
 
-            self.s5 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=3)
-            self.s4 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=2)
-            self.s3 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=1)
-            self.s2 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=0)
+        self.s5 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=3)
+        self.s4 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=2)
+        self.s3 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=1)
+        self.s2 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=0)
 
         self.dropout = nn.Dropout2d(p=dropout, inplace=True)
         last_conv_channels = segmentation_channels*4 if self.hypercolumn else segmentation_channels
@@ -140,21 +149,10 @@ class FPNDecoder(Model):
     def forward(self, x):
         c5, c4, c3, c2, _ = x
 
-        # c5 torch.Size([12, 576, 8, 14])
-        # c4 torch.Size([12, 200, 16, 28])
-        # c3 torch.Size([12, 72, 32, 56])
-        # c2 torch.Size([12, 40, 64, 112])
-
         p5 = self.conv1(c5)
-        #print(p5.size(), c4.size())
         p4 = self.p4([p5, c4])
-        #print(p4.size(), c3.size())
         p3 = self.p3([p4, c3])
-        #print(p3.size(), c2.size())
         p2 = self.p2([p3, c2])
-
-        # print(p5.size(), c4.size(), p4.size(), c3.size())
-        # torch.Size([12, 256, 8, 14]) torch.Size([12, 200, 16, 28]) torch.Size([12, 256, 16, 28]) torch.Size([12, 72, 32, 56])
 
         s5 = self.s5(p5)
         s4 = self.s4(p4)
@@ -171,4 +169,5 @@ class FPNDecoder(Model):
 
         if self.final_upsampling is not None and self.final_upsampling > 1:
             x = F.interpolate(x, scale_factor=self.final_upsampling, mode='bilinear', align_corners=True)
+
         return x

@@ -73,7 +73,7 @@ class FPN(EncoderDecoder):
             final_upsampling=final_upsampling,
             hypercolumn=hypercolumn,
             supervision=supervision,
-            attentionGate=attentionGate
+            attentionGate=attentionGate,
         )
 
         super().__init__(encoder, decoder, activation, cls)

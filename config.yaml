@@ -1,22 +1,25 @@
 MAIN:
   path_to_project: "/home/danil.akhmetov/Projects/Severstal/"
   path_to_data: "/home/danil.akhmetov/Projects/Severstal/data/"
-  fold: 0
+  activation: &activation "sigmoid"
+  fold: 2
 TRAIN:
-  batch_size: 24
+  batch_size: 36
 
   model: &model models.segmentation_models_pytorch_danil.FPN
   model_params: &model_params
     classes: 4
     encoder_weights: imagenet
     encoder_name: efficientnet-b6
-    #attention_type: scse
+    dropout: 0.2
+#    attention_type: scse
     cls_out: 0
     hypercolumn: 'true'
     attentionGate: 'true'
+    activation: *activation
 
   train_params:
-    name: &name smp_fpn_efb6_crop_bce_HA_fold_0
+    name: &name smp_fpn_efb6_crop_bce_HA_fold_2
     type: crop
     model: *model
     model_params: *model_params
@@ -26,6 +29,7 @@ TRAIN:
         bce: 3
         dice: 1
       sv_weight: 0.01
+      activation: *activation
     metrics:
       metrics.HardDiceCoef:
         threshold: 0.5
@@ -65,7 +69,7 @@ TRAIN:
       scheduler_params:
         T_max: 10
         eta_min: 0.000001
-      epochs: 170
+      epochs: 160
 
     sgd:
       optimizer: SGD
@@ -76,7 +80,7 @@ TRAIN:
       scheduler_params:
         T_max: 10
         eta_min: 0.000001
-      epochs: 20
+      epochs: 30
 
   swa: 0
   data_params:
@@ -98,9 +102,8 @@ TEST:
   batch_size: 64
   model: *model
   model_params: *model_params
-  weights: /home/danil.akhmetov/Projects/Severstal/output/weights
-  cls_predict: '../classification_lb_xception_099.csv'
-  threshold_cls: -1.0
+  weights: /home/danil.akhmetov/Projects/Severstal/output/weights_cv
+  cls_predict: '../multilabel_lb_xception_096.csv'
   TTA: 'true'
 
 #'../resnet34-cls-tta-0.50.csv'

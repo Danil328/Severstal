@@ -26,14 +26,14 @@ def main():
     args = parse_args()
     config_main = read_config(args.config_file, "MAIN")
     config = read_config(args.config_file, "TEST")
-    val_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST, phase='val', fold=config_main['fold'])
-    # if len(config['cls_predict']) > 0:
-    #     val_dataset.start_value = 0.0
-    #     val_dataset.delta = 0.0
-    #     val_dataset.update_empty_mask_ratio(0)
-    val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16, drop_last=False)
 
-    test_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST, phase='test')
+    if config_main['activation'] == 'sigmoid':
+        activation = torch.sigmoid
+    elif config_main['activation'] == 'softmax':
+        activation = torch.softmax
+
+    test_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST, phase='test',
+                                activation=config_main['activation'])
 
     test_loader = DataLoader(test_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16, drop_last=False)
 
@@ -48,22 +48,32 @@ def main():
         ]
     )
 
-    best_threshold, best_min_size_threshold = search_threshold(config, val_loader, device, transforms)
-    # best_threshold = 0.85
+    #best_threshold, best_min_size_threshold = search_threshold(config, config_main, device, transforms, activation)
+    best_threshold = 0.7
     best_min_size_threshold = 500
 
-    predict(config, test_loader, best_threshold, best_min_size_threshold, device, transforms)
+    predict(config, test_loader, best_threshold, best_min_size_threshold, device, transforms, activation)
 
 
-def search_threshold(config, val_loader, device, transforms):
+def search_threshold(config, config_main, device, transforms, activation):
+    val_dataset = SteelDataset(data_folder=config_main['path_to_data'], transforms=AUGMENTATIONS_TEST, phase='val',
+                               fold=config_main['fold'], activation=config_main['activation'])
+    # if len(config['cls_predict']) > 0:
+    #     val_dataset.start_value = 0.2
+    #     val_dataset.delta = 0.0
+    #     val_dataset.update_empty_mask_ratio(0)
+    val_loader = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, num_workers=16, drop_last=False)
+
     models = []
 
-    for weight in glob.glob(os.path.join(config['weights'], config['name'], 'cosine/') + "*.pth"):
+    for weight in glob.glob(os.path.join(config['weights'], config['name'], 'final_weights/') + "*.pth"):
         model = pydoc.locate(config['model'])(**config['model_params'])
         model.load_state_dict(torch.load(weight))
         model = model.to(device)
         model.eval()
         models.append(model)
+    print(f"Use {len(models)} models.")
+    assert len(models) > 0, "Models not loaded"
 
     masks, predicts = [], []
     with torch.no_grad():
@@ -77,7 +87,7 @@ def search_threshold(config, val_loader, device, transforms):
                         model = tta.SegmentationTTAWrapper(model, transforms)
                     tmp_batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
                     for step in np.arange(0, 1600, 384)[:-1]:
-                        tmp_pred = torch.sigmoid(model(images[:,:,:,step:step+448])).cpu().numpy()
+                        tmp_pred = activation(model(images[:,:,:,step:step+448])).cpu().numpy()
                         tmp_batch_preds[:,:,:,step:step+448] += tmp_pred
                     tmp_batch_preds[:,:,:,384:384+64] /= 2
                     tmp_batch_preds[:,:,:,2*384:2*384+64] /= 2
@@ -87,7 +97,7 @@ def search_threshold(config, val_loader, device, transforms):
                 for model in models:
                     if config['TTA'] == 'true':
                         model = tta.SegmentationTTAWrapper(model, transforms)
-                    batch_preds += torch.sigmoid(model(images)).cpu().numpy() ** 0.5
+                    batch_preds += activation(model(images)).cpu().numpy() ** 0.5
             batch_preds = batch_preds / len(models)
 
             masks.append(mask)
@@ -128,9 +138,9 @@ def search_threshold(config, val_loader, device, transforms):
     return best_threshold, best_min_size_threshold
 
 
-def predict(config, test_loader, best_threshold, min_size, device, transforms):
+def predict(config, test_loader, best_threshold, min_size, device, transforms, activation):
     models = []
-    for weight in glob.glob(os.path.join(config['weights'], config['name'], 'cosine/') + "*.pth"):
+    for weight in glob.glob(os.path.join(config['weights'], config['name'], 'final_weights/') + "*.pth"):
         model = pydoc.locate(config['model'])(**config['model_params'])
         model.load_state_dict(torch.load(weight))
         model = model.to(device)
@@ -140,10 +150,7 @@ def predict(config, test_loader, best_threshold, min_size, device, transforms):
     if len(config['cls_predict']) > 0:
         print("Use classification model results")
         cls_df = pd.read_csv(config['cls_predict'])
-        if config['threshold_cls'] > 0:
-            print("Apply cls threshold ...")
-            cls_df['is_mask_empty'] = cls_df['mask_empty_prob'].map(lambda x: 1 if x > config['threshold_cls'] else 0)
-            #cls_df['is_mask_empty'] = cls_df['EncodedPixels'].map(lambda x: 1 if pd.isna(x) else 0)
+        cls_df['is_mask_empty'] = cls_df['EncodedPixels'].map(lambda x: 1 if x==0 else 0)
         cls_df.index = cls_df.ImageId_ClassId.values
         cls_df.drop_duplicates(inplace=True)
     else:
@@ -163,7 +170,7 @@ def predict(config, test_loader, best_threshold, min_size, device, transforms):
                         model = tta.SegmentationTTAWrapper(model, transforms)
                     tmp_batch_preds = np.zeros((images.size(0), 4, 256, 1600), dtype=np.float32)
                     for step in np.arange(0, 1600, 384)[:-1]:
-                        tmp_pred = torch.sigmoid(model(images[:, :, :, step:step + 448])).cpu().numpy()
+                        tmp_pred = activation(model(images[:, :, :, step:step + 448])).cpu().numpy()
                         tmp_batch_preds[:, :, :, step:step + 448] += tmp_pred
                     tmp_batch_preds[:, :, :, 384:384 + 64] /= 2
                     tmp_batch_preds[:, :, :, 2 * 384:2 * 384 + 64] /= 2
@@ -173,13 +180,12 @@ def predict(config, test_loader, best_threshold, min_size, device, transforms):
                 for model in models:
                     if config['TTA'] == 'true':
                         model = tta.SegmentationTTAWrapper(model, transforms)
-                    batch_preds += torch.sigmoid(model(images)).cpu().numpy() ** 0.5
+                    batch_preds += activation(model(images)).cpu().numpy() ** 0.5
             batch_preds = batch_preds / len(models)
             for fname, preds in zip(fnames, batch_preds):
                 for cls, pred in enumerate(preds):
                     if cls_df is not None:
-                        #if cls_df.loc[fname + f"_{cls + 1}"]['is_mask_empty'] == 1:
-                        if cls_df.loc[fname]['is_mask_empty'] == 1:
+                        if cls_df.loc[fname + f"_{cls + 1}"]['is_mask_empty'] == 1:
                             pred = np.zeros((256, 1600))
                         else:
                             pred, num = post_process(pred, best_threshold, min_size)

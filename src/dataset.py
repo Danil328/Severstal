@@ -17,13 +17,14 @@ from albumentations import (
     RandomBrightnessContrast,
     Normalize,
     ShiftScaleRotate,
-    CropNonEmptyMaskIfExists)
+    CropNonEmptyMaskIfExists, NoOp)
 from albumentations.pytorch import ToTensor, ToTensorV2
 from sklearn.model_selection import train_test_split
-from torch.utils.data import Dataset, Sampler
+from torch.utils.data import Dataset, Sampler, DataLoader
 from tqdm import tqdm
 
 ORIG_SHAPE = (256, 1600)
+NUM_CLASSES = 4
 
 AUGMENTATIONS_TRAIN = Compose([
     HorizontalFlip(p=0.5),
@@ -37,63 +38,50 @@ AUGMENTATIONS_TRAIN = Compose([
     #     OpticalDistortion(border_mode=0, distort_limit=0.05, interpolation=1, shift_limit=0.05, p=1.0),
     # ], p=0.3),
     Normalize(),
-    ToTensor(num_classes=4, sigmoid=True)
+    ToTensor(num_classes=NUM_CLASSES, sigmoid=True)
 ], p=1)
 
 AUGMENTATIONS_TEST = Compose([
     Normalize(),
-    ToTensor(num_classes=4, sigmoid=True)
+    ToTensor(num_classes=NUM_CLASSES, sigmoid=True)
 ], p=1)
 
 
 AUGMENTATIONS_TRAIN_CROP = Compose([
     CropNonEmptyMaskIfExists(height=256, width=448, always_apply=True),
     HorizontalFlip(p=0.5),
-    VerticalFlip(p=0.25),
+    VerticalFlip(p=0.1),
     ShiftScaleRotate(shift_limit=(-0.1, 0.1), scale_limit=(-0.1, 0.1), rotate_limit=(-10, 10), border_mode=0, interpolation=1, p=0.25),
     OneOf([
         ElasticTransform(p=0.2, alpha=120, sigma=120 * 0.1, alpha_affine=120 * 0.03),
         GridDistortion(p=0.5),
         OpticalDistortion(border_mode=0, distort_limit=0.05, interpolation=1, shift_limit=0.05, p=1.0),
-    ], p=0.3),
+    ], p=0.1),
     OneOf([
         RandomBrightnessContrast(brightness_limit=(-0.2, 0.2), contrast_limit=(-0.2, 0.2)),
     ], p=0.25),
     Normalize(),
-    ToTensor(num_classes=4, sigmoid=True)
+    ToTensor(num_classes=NUM_CLASSES, sigmoid=True)
 ], p=1)
 
 AUGMENTATIONS_TEST_CROP = Compose([
     CropNonEmptyMaskIfExists(height=256, width=448, always_apply=True),
     Normalize(),
-    ToTensor(num_classes=4, sigmoid=True)
+    ToTensor(num_classes=NUM_CLASSES, sigmoid=True)
 ], p=1)
 
 class SteelDataset(Dataset):
-    """
-    0 - empty mask
-    Class balance
-    0       5902
-    1       769
-    12       35
-    123       2
-    13       91
-    2       195
-    23       14
-    24        1
-    3      4759
-    34      284
-    4       516
-    """
-    def __init__(self, data_folder, transforms, phase, fold=-1, empty_mask_params: dict = None):
+
+    def __init__(self, data_folder, transforms, phase, fold=-1, empty_mask_params: dict = None, activation="sigmoid"):
         assert phase in ['train', 'val', 'test'], "Fuck you!"
 
         self.root = data_folder
         self.transforms = transforms
         self.phase = phase
         self.fold = fold
+        self.activation = activation
         if phase != 'test':
-            self.images = np.asarray(self.split_train_val(glob.glob(os.path.join(self.root, "train_images", "*.jpg"))))[:200]
+            self.images = np.asarray(self.split_train_val(glob.glob(os.path.join(self.root, "train_images", "*.jpg"))))#[:200]
 
             # Get labels for classification
             self.labels = np.zeros((self.images.shape[0], 4), dtype=np.float32)
@@ -121,6 +109,8 @@ class SteelDataset(Dataset):
             augmented = self.transforms(image=img, mask=mask)
             img = augmented['image']
             mask = augmented['mask']
+            if self.activation == 'softmax':
+                mask = torch.cat([mask, (1.0-mask.max(0).values).unsqueeze(0)], 0).type(torch.LongTensor)
             return {"image": img, "mask": mask, "label": mask.max().detach()} #torch.tensor(self.labels[idx], dtype=torch.float)
         else:
             augmented = self.transforms(image=img)
@@ -182,18 +172,20 @@ class FourBalanceClassSampler(Sampler):
 
 if __name__ == '__main__':
     rnd = np.random.randint(1, 100)
-    dataset = SteelDataset(data_folder='../data', transforms=AUGMENTATIONS_TRAIN, phase='train',
+    dataset = SteelDataset(data_folder='../data', transforms=AUGMENTATIONS_TRAIN_CROP, phase='train', activation='softmax',
                            empty_mask_params={"state": "true",
                                               "start_value": 0.0,
                                               "end_value": 1.0,
                                               "n_epochs": 50})
+
+    train_loader = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=16, drop_last=True)
+
+
     data = dataset[rnd]
     image = data['image'].numpy()
     mask = data['mask'].numpy()
-    label = data['label'].numpy()
     print(image.shape)
     print(mask.shape)
-    print(label.shape)
     print(image.min(), image.max())
     print(mask.min(), mask.max())
     print(dataset.labels.sum(0))
@@ -201,4 +193,7 @@ if __name__ == '__main__':
     print(f"Len before update {dataset.__len__()}")
     dataset.update_empty_mask_ratio(10)
     print(f"Len after update {dataset.__len__()}")
+
+    for i in train_loader:
+        break
 

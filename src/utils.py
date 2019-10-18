@@ -2,6 +2,8 @@ import random
 
 import numpy as np
 import torch
+from torch import nn
+import torch.functional as F
 import yaml
 
 
@@ -52,3 +54,11 @@ def set_global_seeds(i: int):
 
 def batch2device(data, device):
     return {k: v if not hasattr(v, 'to') else v.to(device) for k, v in data.items()}
+
+
+class Mish(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return x *( torch.tanh(F.softplus(x)))

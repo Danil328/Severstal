@@ -38,8 +38,11 @@ class Unet(EncoderDecoder):
             activation='sigmoid',
             center=False,  # usefull for VGG models
             attention_type=None,
+            hypercolumn=False,
             cls_out=0
     ):
+        hypercolumn = True if hypercolumn=='true' else False
+
         encoder = get_encoder(
             encoder_name,
             encoder_weights=encoder_weights
@@ -65,7 +68,8 @@ class Unet(EncoderDecoder):
             final_channels=classes,
             use_batchnorm=decoder_use_batchnorm,
             center=center,
-            attention_type=attention_type
+            attention_type=attention_type,
+            hypercolumn=hypercolumn
         )
 
         super().__init__(encoder, decoder, activation, cls)

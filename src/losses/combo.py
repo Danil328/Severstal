@@ -1,9 +1,8 @@
 import torch
-import torch.nn.functional as F
 from torch import nn
 
 from losses.my_loss import TverskyLoss
-from .bce import StableBCELoss
+from models.segmentation_models_pytorch_danil.utils.losses import criterion_mask
 from .dice import DiceLoss
 from .focal import FocalLoss2d
 from .jaccard import JaccardLoss
@@ -11,23 +10,25 @@ from .lovasz import LovaszLoss, LovaszLossSigmoid
 
 
 class ComboLoss(nn.Module):
-    def __init__(self, weights, per_image=False, channel_weights=None, channel_losses=None):
+    def __init__(self, weights, per_image=False, channel_weights=None, channel_losses=None, activation="sigmoid"):
         super().__init__()
         if channel_weights is None:
             channel_weights = [1, 1, 1, 1]
         self.weights = weights
+        self.activation = activation
 
-        # https://www.kaggle.com/c/severstal-steel-defect-detection/discussion/110188#latest-637863
-        self.bce = nn.BCELoss() #StableBCELoss()
-
+        self.bce = nn.BCELoss()
+        self.focal_frog = criterion_mask
         self.dice = DiceLoss(per_image=False)
         self.jaccard = JaccardLoss(per_image=False)
         self.lovasz = LovaszLoss(per_image=per_image)
         self.lovasz_sigmoid = LovaszLossSigmoid(per_image=per_image)
         self.focal = FocalLoss2d()
         self.tversky = TverskyLoss(alpha=0.5, beta=0.5, gamma=2.0)
+
         self.mapping = {
             'bce': self.bce,
+            "focal_frog": self.focal_frog,
             'dice': self.dice,
             'focal': self.focal,
             'jaccard': self.jaccard,
@@ -35,6 +36,7 @@ class ComboLoss(nn.Module):
             'lovasz_sigmoid': self.lovasz_sigmoid,
             'tversky': self.tversky
         }
+
         self.expect_sigmoid = {'dice', 'focal', 'jaccard', 'lovasz_sigmoid', 'tversky', 'bce'}
         self.per_channel = {'dice', 'jaccard', 'lovasz_sigmoid', 'tversky'}
         self.values = {}
@@ -44,7 +46,10 @@ class ComboLoss(nn.Module):
     def forward(self, outputs, targets):
         loss = 0
         weights = self.weights
-        sigmoid_input = torch.sigmoid(outputs)
+        if self.activation == 'sigmoid':
+            sigmoid_input = torch.sigmoid(outputs)
+        elif self.activation == 'softmax':
+            sigmoid_input = torch.softmax(outputs, dim=1)
         for k, v in weights.items():
             if not v:
                 continue
@@ -66,8 +71,8 @@ class ComboLoss(nn.Module):
 
 
 class ComboSuperVisionLoss(ComboLoss):
-    def __init__(self, weights, per_image=False, channel_weights=(1.0, 1.0, 1.0, 1.0), channel_losses=None, sv_weight=0.15):
-        super().__init__(weights, per_image, channel_weights, channel_losses)
+    def __init__(self, weights, per_image=False, channel_weights=(1.0, 1.0, 1.0, 1.0), channel_losses=None, sv_weight=0.15, activation="sigmoid"):
+        super().__init__(weights, per_image, channel_weights, channel_losses, activation)
         self.sv_weight = sv_weight
 
     def forward(self, *input):
