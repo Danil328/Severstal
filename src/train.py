@@ -27,7 +27,7 @@ def create_callbacks(name, dumps):
         [
             Logger(log_dir),
             CheckpointSaver(
-                metric_name='HardDiceCoef',
+                metric_name=dumps['metric_name'],
                 save_dir=save_dir,
                 save_name='epoch_{epoch}.pth',
                 num_checkpoints=4,

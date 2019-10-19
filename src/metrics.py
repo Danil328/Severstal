@@ -82,3 +82,18 @@ class JaccardScore(nn.Module):
         inputs = torch.sigmoid(inputs)
         acc = jaccard_score(target.cpu().numpy(), np.round(inputs.cpu().numpy()), average='micro')
         return acc
+
+
+class SoftMaxDiceMetric(nn.Module):
+    def __init__(self, threshold=0.5):
+        super().__init__()
+        self.dice = HardDiceCoef(threshold=threshold)
+
+    def forward(self, inputs, target):
+        inputs = torch.softmax(inputs, 1)
+        temp = torch.zeros_like(inputs[:, 1:, ...])
+        temp[:, 0, :][target.squeeze() == 1] = 1
+        temp[:, 1, :][target.squeeze() == 2] = 1
+        temp[:, 2, :][target.squeeze() == 3] = 1
+        temp[:, 3, :][target.squeeze() == 4] = 1
+        return self.dice(inputs[:, 1:, ...], temp)

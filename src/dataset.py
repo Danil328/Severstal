@@ -110,7 +110,8 @@ class SteelDataset(Dataset):
             img = augmented['image']
             mask = augmented['mask']
             if self.activation == 'softmax':
-                mask = torch.cat([mask, (1.0-mask.max(0).values).unsqueeze(0)], 0).type(torch.LongTensor)
+                #mask = torch.cat([mask, (1.0-mask.max(0).values).unsqueeze(0)], 0).type(torch.LongTensor)
+                mask = torch.argmax(torch.cat([(1.0-mask.max(0).values).unsqueeze(0), mask], 0).type(torch.LongTensor), 0, True)
             return {"image": img, "mask": mask, "label": mask.max().detach()} #torch.tensor(self.labels[idx], dtype=torch.float)
         else:
             augmented = self.transforms(image=img)

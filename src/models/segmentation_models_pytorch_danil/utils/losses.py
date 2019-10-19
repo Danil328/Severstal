@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from . import functions as F
+import torch.nn.functional as FF
 
 
 class JaccardLoss(nn.Module):
@@ -63,8 +64,8 @@ def criterion_mask(logit, truth, weight=None):
     truth = truth.permute(0, 2, 3, 1).contiguous().view(-1)
     # return F.cross_entropy(logit, truth, reduction='mean')
 
-    log_probability = -F.log_softmax(logit,-1)
-    probability = F.softmax(logit,-1)
+    log_probability = -FF.log_softmax(logit,-1)
+    probability = FF.softmax(logit,-1)
 
     onehot = torch.zeros(batch_size*H*W,num_class).to(truth.device)
     onehot.scatter_(dim=1, index=truth.view(-1,1),value=1) #F.one_hot(truth,5).float()

@@ -4,7 +4,7 @@ from torch import nn
 from losses.my_loss import TverskyLoss
 from models.segmentation_models_pytorch_danil.utils.losses import criterion_mask
 from .dice import DiceLoss
-from .focal import FocalLoss2d
+from .focal import FocalLoss2d, FocalLoss
 from .jaccard import JaccardLoss
 from .lovasz import LovaszLoss, LovaszLossSigmoid
 
@@ -18,7 +18,9 @@ class ComboLoss(nn.Module):
         self.activation = activation
 
         self.bce = nn.BCELoss()
+        self.ce = nn.CrossEntropyLoss()
         self.focal_frog = criterion_mask
+        self.focal_git = FocalLoss()
         self.dice = DiceLoss(per_image=False)
         self.jaccard = JaccardLoss(per_image=False)
         self.lovasz = LovaszLoss(per_image=per_image)
@@ -28,7 +30,9 @@ class ComboLoss(nn.Module):
 
         self.mapping = {
             'bce': self.bce,
+            'ce': self.ce,
             "focal_frog": self.focal_frog,
+            "focal_git": self.focal_git,
             'dice': self.dice,
             'focal': self.focal,
             'jaccard': self.jaccard,
@@ -37,7 +41,7 @@ class ComboLoss(nn.Module):
             'tversky': self.tversky
         }
 
-        self.expect_sigmoid = {'dice', 'focal', 'jaccard', 'lovasz_sigmoid', 'tversky', 'bce'}
+        self.expect_sigmoid = {'dice', 'focal', 'jaccard', 'lovasz_sigmoid', 'tversky', 'bce', 'ce'}
         self.per_channel = {'dice', 'jaccard', 'lovasz_sigmoid', 'tversky'}
         self.values = {}
         self.channel_weights = channel_weights
@@ -72,6 +76,7 @@ class ComboLoss(nn.Module):
 
 class ComboSuperVisionLoss(ComboLoss):
     def __init__(self, weights, per_image=False, channel_weights=(1.0, 1.0, 1.0, 1.0), channel_losses=None, sv_weight=0.15, activation="sigmoid"):
+        channel_weights = channel_weights if activation=='sigmoid' else (1.0, 1.0, 1.0, 1.0, 1.0)
         super().__init__(weights, per_image, channel_weights, channel_losses, activation)
         self.sv_weight = sv_weight
 
