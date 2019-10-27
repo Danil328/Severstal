@@ -75,7 +75,7 @@ class ComboLoss(nn.Module):
 
 
 class ComboSuperVisionLoss(ComboLoss):
-    def __init__(self, weights, per_image=False, channel_weights=(1.0, 1.0, 1.0, 1.0), channel_losses=None, sv_weight=0.15, activation="sigmoid"):
+    def __init__(self, weights, per_image=False, channel_weights=(1.0, 1.0, 2.0, 1.0), channel_losses=None, sv_weight=0.15, activation="sigmoid"):
         channel_weights = channel_weights if activation=='sigmoid' else (1.0, 1.0, 1.0, 1.0, 1.0)
         super().__init__(weights, per_image, channel_weights, channel_losses, activation)
         self.sv_weight = sv_weight

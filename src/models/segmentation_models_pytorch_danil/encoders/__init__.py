@@ -27,7 +27,7 @@ def get_encoder(name, encoder_weights=None):
     encoder = Encoder(**encoders[name]['params'])
     encoder.out_shapes = encoders[name]['out_shapes']
 
-    if encoder_weights is not None:
+    if encoder_weights is not None and len(encoder_weights)>0:
         settings = encoders[name]['pretrained_settings'][encoder_weights]
         encoder.load_state_dict(model_zoo.load_url(settings['url']))
 

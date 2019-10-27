@@ -1,6 +1,7 @@
 import random
 
 import numpy as np
+import pydensecrf.densecrf as dcrf
 import torch
 from torch import nn
 import torch.functional as F
@@ -62,3 +63,31 @@ class Mish(nn.Module):
 
     def forward(self, x):
         return x *( torch.tanh(F.softplus(x)))
+
+
+class CRF:
+    def __init__(self, w, h):
+        self.w = w
+        self.h = h
+
+
+    def dense_crf(self, img, output_probs):
+
+        output_probs = np.expand_dims(output_probs, 0)
+        output_probs = np.append(1 - output_probs, output_probs, axis=0)
+
+        d = dcrf.DenseCRF2D(self.w, self.h, 2)
+        U = -np.log(output_probs)
+        U = U.reshape((2, -1))
+        U = np.ascontiguousarray(U)
+        img = np.ascontiguousarray(img)
+
+        d.setUnaryEnergy(U)
+
+        d.addPairwiseGaussian(sxy=20, compat=3)
+        d.addPairwiseBilateral(sxy=30, srgb=20, rgbim=img, compat=10)
+
+        Q = d.inference(5)
+        Q = np.argmax(np.array(Q), axis=0).reshape((self.h, self.w))
+
+        return Q

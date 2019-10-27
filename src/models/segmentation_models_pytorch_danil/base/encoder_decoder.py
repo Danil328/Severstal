@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 
-from utils import Mish
 from .model import Model
 
 
